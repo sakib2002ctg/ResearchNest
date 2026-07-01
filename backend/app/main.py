@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI):
             connection.execute(text("SELECT 1"))
 
         # Create all tables
-        Base.metadata.create_all(bind=engine)
+        
 
         print("✅ Connected to PostgreSQL successfully!")
         print("✅ Database tables created!")
