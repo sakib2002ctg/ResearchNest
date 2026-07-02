@@ -7,60 +7,64 @@ from app.schemas.research_paper import (
 )
 
 
-def create_paper(
-    db: Session,
-    paper: ResearchPaperCreate,
-):
-    new_paper = ResearchPaper(
-        title=paper.title,
-        authors=paper.authors,
-        abstract=paper.abstract,
-        source=paper.source,
-        url=str(paper.url) if paper.url else None,
-    )
+class PaperRepository:
+    def __init__(self, db: Session):
+        self.db = db
 
-    db.add(new_paper)
-    db.commit()
-    db.refresh(new_paper)
+    def create_paper(
+        self,
+        paper: ResearchPaperCreate,
+    ):
+        new_paper = ResearchPaper(
+            title=paper.title,
+            authors=paper.authors,
+            abstract=paper.abstract,
+            source=paper.source,
+            url=str(paper.url) if paper.url else None,
+        )
 
-    return new_paper
+        self.db.add(new_paper)
+        self.db.commit()
+        self.db.refresh(new_paper)
 
+        return new_paper
 
-def get_all_papers(db: Session):
-    return db.query(ResearchPaper).all()
+    def get_all_papers(self):
+        return self.db.query(ResearchPaper).all()
 
+    def get_paper_by_id(
+        self,
+        paper_id: int,
+    ):
+        return (
+            self.db.query(ResearchPaper)
+            .filter(ResearchPaper.id == paper_id)
+            .first()
+        )
 
-def get_paper_by_id(
-    db: Session,
-    paper_id: int,
-):
-    return (
-        db.query(ResearchPaper)
-        .filter(ResearchPaper.id == paper_id)
-        .first()
-    )
+    def update_paper(
+        self,
+        paper: ResearchPaper,
+        updated_paper: ResearchPaperUpdate,
+    ):
+        paper.title = updated_paper.title
+        paper.authors = updated_paper.authors
+        paper.abstract = updated_paper.abstract
+        paper.source = updated_paper.source
+        paper.url = (
+            str(updated_paper.url)
+            if updated_paper.url
+            else None
+        )
 
+        self.db.commit()
+        self.db.refresh(paper)
 
-def update_paper(
-    db: Session,
-    paper: ResearchPaper,
-    updated_paper: ResearchPaperUpdate,
-):
-    paper.title = updated_paper.title
-    paper.authors = updated_paper.authors
-    paper.abstract = updated_paper.abstract
-    paper.source = updated_paper.source
-    paper.url = str(updated_paper.url) if updated_paper.url else None
+        return paper
 
-    db.commit()
-    db.refresh(paper)
-
-    return paper
-
-
-def delete_paper(
-    db: Session,
-    paper: ResearchPaper,
-):
-    db.delete(paper)
-    db.commit()
+    def delete_paper(
+        self,
+        paper: ResearchPaper,
+    ):
+        self.db.delete(paper)
+        self.db.commit()
