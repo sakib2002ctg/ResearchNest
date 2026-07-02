@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from app.dependencies.paper_dependencies import get_paper_service
 from app.schemas.research_paper import (
     ResearchPaperCreate,
-    ResearchPaperUpdate,
     ResearchPaperResponse,
+    ResearchPaperUpdate,
 )
 from app.services.paper_service import PaperService
 
@@ -34,15 +34,7 @@ def get_paper(
     paper_id: int,
     service: PaperService = Depends(get_paper_service),
 ):
-    paper = service.get_paper_by_id(paper_id)
-
-    if paper is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Paper not found",
-        )
-
-    return paper
+    return service.get_paper_by_id(paper_id)
 
 
 @router.put("/{paper_id}", response_model=ResearchPaperResponse)
@@ -52,12 +44,6 @@ def update_paper(
     service: PaperService = Depends(get_paper_service),
 ):
     paper = service.get_paper_by_id(paper_id)
-
-    if paper is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Paper not found",
-        )
 
     return service.update_paper(
         paper,
@@ -71,12 +57,6 @@ def delete_paper(
     service: PaperService = Depends(get_paper_service),
 ):
     paper = service.get_paper_by_id(paper_id)
-
-    if paper is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Paper not found",
-        )
 
     service.delete_paper(paper)
 

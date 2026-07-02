@@ -1,5 +1,4 @@
 from contextlib import asynccontextmanager
-from app.middleware.logging import LoggingMiddleware
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -7,6 +6,8 @@ from sqlalchemy import text
 
 from app.core.logging import logger
 from app.database.database import engine
+from app.exceptions.handlers import register_exception_handlers
+from app.middleware.logging import LoggingMiddleware
 from app.routers.papers import router as papers_router
 from app.routers.research import router as research_router
 
@@ -34,7 +35,13 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Middleware
 app.add_middleware(LoggingMiddleware)
+
+# Register global exception handlers
+register_exception_handlers(app)
+
 # Routers
 app.include_router(research_router)
 app.include_router(papers_router)

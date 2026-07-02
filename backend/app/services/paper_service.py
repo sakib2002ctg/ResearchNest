@@ -1,3 +1,4 @@
+from app.exceptions.custom_exceptions import PaperNotFoundException
 from app.repositories.paper_repository import PaperRepository
 from app.schemas.research_paper import (
     ResearchPaperCreate,
@@ -22,7 +23,12 @@ class PaperService:
         self,
         paper_id: int,
     ):
-        return self.repository.get_paper_by_id(paper_id)
+        paper = self.repository.get_paper_by_id(paper_id)
+
+        if paper is None:
+            raise PaperNotFoundException(paper_id)
+
+        return paper
 
     def update_paper(
         self,
