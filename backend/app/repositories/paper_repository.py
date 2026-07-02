@@ -47,15 +47,17 @@ class PaperRepository:
         paper: ResearchPaper,
         updated_paper: ResearchPaperUpdate,
     ):
-        paper.title = updated_paper.title
-        paper.authors = updated_paper.authors
-        paper.abstract = updated_paper.abstract
-        paper.source = updated_paper.source
-        paper.url = (
-            str(updated_paper.url)
-            if updated_paper.url
-            else None
-        )
+        update_data = updated_paper.model_dump(exclude_unset=True)
+
+        if "url" in update_data:
+            update_data["url"] = (
+                str(update_data["url"])
+                if update_data["url"]
+                else None
+            )
+
+        for field, value in update_data.items():
+            setattr(paper, field, value)
 
         self.db.commit()
         self.db.refresh(paper)

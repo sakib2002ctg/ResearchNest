@@ -1,31 +1,70 @@
-from pydantic import BaseModel, HttpUrl
 from typing import Optional
 
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
-class ResearchPaperCreate(BaseModel):
-    title: str
-    authors: Optional[str] = None
-    abstract: Optional[str] = None
-    source: Optional[str] = None
+
+class ResearchPaperBase(BaseModel):
+    title: str = Field(
+        ...,
+        min_length=1,
+        max_length=255,
+        description="Title of the research paper",
+    )
+    authors: Optional[str] = Field(
+        default=None,
+        max_length=255,
+    )
+    abstract: Optional[str] = Field(
+        default=None,
+        max_length=5000,
+    )
+    source: Optional[str] = Field(
+        default=None,
+        max_length=100,
+    )
     url: Optional[HttpUrl] = None
+
+    @field_validator("title", "authors", "abstract", "source")
+    @classmethod
+    def strip_strings(cls, value: Optional[str]):
+        if value is None:
+            return value
+        return value.strip()
+
+
+class ResearchPaperCreate(ResearchPaperBase):
+    pass
 
 
 class ResearchPaperUpdate(BaseModel):
-    title: str
-    authors: Optional[str] = None
-    abstract: Optional[str] = None
-    source: Optional[str] = None
+    title: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+    )
+    authors: Optional[str] = Field(
+        default=None,
+        max_length=255,
+    )
+    abstract: Optional[str] = Field(
+        default=None,
+        max_length=5000,
+    )
+    source: Optional[str] = Field(
+        default=None,
+        max_length=100,
+    )
     url: Optional[HttpUrl] = None
 
+    @field_validator("title", "authors", "abstract", "source")
+    @classmethod
+    def strip_strings(cls, value: Optional[str]):
+        if value is None:
+            return value
+        return value.strip()
 
-class ResearchPaperResponse(BaseModel):
+
+class ResearchPaperResponse(ResearchPaperBase):
     id: int
-    title: str
-    authors: Optional[str] = None
-    abstract: Optional[str] = None
-    source: Optional[str] = None
-    url: Optional[HttpUrl] = None
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = ConfigDict(from_attributes=True)
