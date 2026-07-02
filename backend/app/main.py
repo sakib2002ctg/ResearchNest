@@ -12,7 +12,7 @@ from app.middleware.logging import LoggingMiddleware
 from app.routers.papers import router as papers_router
 from app.routers.research import router as research_router
 from app.routers.users import router as users_router
-
+from app.routers.auth import router as auth_router
 
 
 @asynccontextmanager
@@ -49,7 +49,7 @@ register_exception_handlers(app)
 app.include_router(research_router)
 app.include_router(papers_router)
 app.include_router(users_router)
-
+app.include_router(auth_router)
 
 class Student(BaseModel):
     name: str

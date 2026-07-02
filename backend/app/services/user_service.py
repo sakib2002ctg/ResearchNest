@@ -8,12 +8,10 @@ class UserService:
         self.repository = repository
 
     def create_user(self, user_data: UserCreate) -> User:
-        existing_email = self.repository.get_by_email(user_data.email)
-        if existing_email:
+        if self.repository.get_by_email(user_data.email):
             raise ValueError("Email already exists.")
 
-        existing_username = self.repository.get_by_username(user_data.username)
-        if existing_username:
+        if self.repository.get_by_username(user_data.username):
             raise ValueError("Username already exists.")
 
         user = User(
