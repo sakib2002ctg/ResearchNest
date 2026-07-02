@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from app.middleware.logging import LoggingMiddleware
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -33,7 +34,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
-
+app.add_middleware(LoggingMiddleware)
 # Routers
 app.include_router(research_router)
 app.include_router(papers_router)
