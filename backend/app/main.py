@@ -4,10 +4,10 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from sqlalchemy import text
 
-from app.database.database import engine, Base
-from app.models.research_paper import ResearchPaper
-from app.routers.research import router as research_router
+from app.core.logging import logger
+from app.database.database import engine
 from app.routers.papers import router as papers_router
+from app.routers.research import router as research_router
 
 
 @asynccontextmanager
@@ -17,23 +17,21 @@ async def lifespan(app: FastAPI):
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
 
-        # Create all tables
-        
+        logger.info("Connected to PostgreSQL successfully!")
+        logger.info("ResearchNest application started.")
 
-        print("✅ Connected to PostgreSQL successfully!")
-        print("✅ Database tables created!")
-
-    except Exception as e:
-        print("❌ Database connection failed!")
-        print(e)
+    except Exception:
+        logger.exception("Database connection failed!")
 
     yield
+
+    logger.info("ResearchNest application stopped.")
 
 
 app = FastAPI(
     title="ResearchNest API",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Routers
