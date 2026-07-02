@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from app.models.user import User
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -10,6 +11,8 @@ from app.exceptions.handlers import register_exception_handlers
 from app.middleware.logging import LoggingMiddleware
 from app.routers.papers import router as papers_router
 from app.routers.research import router as research_router
+from app.routers.users import router as users_router
+
 
 
 @asynccontextmanager
@@ -45,6 +48,7 @@ register_exception_handlers(app)
 # Routers
 app.include_router(research_router)
 app.include_router(papers_router)
+app.include_router(users_router)
 
 
 class Student(BaseModel):
