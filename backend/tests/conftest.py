@@ -121,3 +121,36 @@ def paper_payload():
         "source": "NeurIPS",
         "url": "https://example.com/paper",
     }
+@pytest.fixture(scope="function")
+def another_user(db):
+    user = User(
+        username="another",
+        email="another@example.com",
+        hashed_password=hash_password("password123"),
+    )
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return user
+
+
+@pytest.fixture(scope="function")
+def another_access_token(another_user):
+    return create_access_token(
+        data={
+            "sub": another_user.email,
+        }
+    )
+
+
+@pytest.fixture(scope="function")
+def another_authenticated_client(client, another_access_token):
+    client.headers.update(
+        {
+            "Authorization": f"Bearer {another_access_token}",
+        }
+    )
+
+    return client
