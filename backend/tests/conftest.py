@@ -52,11 +52,32 @@ def client(db):
     app.dependency_overrides.clear()
 
 
+# -------------------------
+# User Fixtures
+# -------------------------
+
+@pytest.fixture
+def user_payload():
+    return {
+        "username": "sakib",
+        "email": "sakib@example.com",
+        "password": "password123",
+    }
+
+
+@pytest.fixture
+def login_payload():
+    return {
+        "email": "sakib@example.com",
+        "password": "password123",
+    }
+
+
 @pytest.fixture(scope="function")
 def test_user(db):
     user = User(
-        username="testuser",
-        email="test@example.com",
+        username="sakib",
+        email="sakib@example.com",
         hashed_password=hash_password("password123"),
     )
 
@@ -70,7 +91,9 @@ def test_user(db):
 @pytest.fixture(scope="function")
 def access_token(test_user):
     return create_access_token(
-        data={"sub": test_user.email},
+        data={
+            "sub": test_user.email,
+        }
     )
 
 
@@ -81,4 +104,20 @@ def authenticated_client(client, access_token):
             "Authorization": f"Bearer {access_token}",
         }
     )
+
     return client
+
+
+# -------------------------
+# Paper Fixtures
+# -------------------------
+
+@pytest.fixture
+def paper_payload():
+    return {
+        "title": "Attention Is All You Need",
+        "authors": "Ashish Vaswani",
+        "abstract": "Transformer architecture",
+        "source": "NeurIPS",
+        "url": "https://example.com/paper",
+    }
