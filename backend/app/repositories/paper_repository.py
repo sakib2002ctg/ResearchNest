@@ -18,7 +18,7 @@ class PaperRepository:
         owner_id: int,
     ) -> ResearchPaper:
         db_paper = ResearchPaper(
-            **paper.model_dump(),
+            **paper.model_dump(mode="json"),
             owner_id=owner_id,
         )
 
@@ -48,7 +48,9 @@ class PaperRepository:
         )
 
     def count_papers(self) -> int:
-        return self.db.query(func.count(ResearchPaper.id)).scalar()
+        return self.db.query(
+            func.count(ResearchPaper.id)
+        ).scalar()
 
     def search_papers(
         self,
@@ -72,11 +74,16 @@ class PaperRepository:
             .all()
         )
 
-    def count_search_results(self, query: str) -> int:
+    def count_search_results(
+        self,
+        query: str,
+    ) -> int:
         search = f"%{query}%"
 
         return (
-            self.db.query(func.count(ResearchPaper.id))
+            self.db.query(
+                func.count(ResearchPaper.id)
+            )
             .filter(
                 or_(
                     ResearchPaper.title.ilike(search),
@@ -92,7 +99,10 @@ class PaperRepository:
         db_paper: ResearchPaper,
         paper_update: ResearchPaperUpdate,
     ) -> ResearchPaper:
-        update_data = paper_update.model_dump(exclude_unset=True)
+        update_data = paper_update.model_dump(
+            exclude_unset=True,
+            mode="json",
+        )
 
         for field, value in update_data.items():
             setattr(db_paper, field, value)
@@ -102,6 +112,9 @@ class PaperRepository:
 
         return db_paper
 
-    def delete_paper(self, db_paper: ResearchPaper) -> None:
+    def delete_paper(
+        self,
+        db_paper: ResearchPaper,
+    ) -> None:
         self.db.delete(db_paper)
         self.db.commit()
