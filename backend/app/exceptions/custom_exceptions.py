@@ -18,3 +18,15 @@ class PaperNotFoundException(ResearchNestException):
             f"Research paper with id {paper_id} not found."
         )
         self.paper_id = paper_id
+
+
+class PaperPermissionDeniedException(ResearchNestException):
+    """
+    Raised when a user attempts to modify
+    a paper they do not own.
+    """
+
+    def __init__(self):
+        super().__init__(
+            "You do not have permission to perform this action."
+        )

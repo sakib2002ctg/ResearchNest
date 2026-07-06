@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from app.core.logging import logger
 from app.exceptions.custom_exceptions import (
     PaperNotFoundException,
+    PaperPermissionDeniedException,
     ResearchNestException,
 )
 
@@ -23,6 +24,24 @@ def register_exception_handlers(app: FastAPI):
                 "success": False,
                 "error": {
                     "code": 404,
+                    "message": exc.message,
+                },
+            },
+        )
+
+    @app.exception_handler(PaperPermissionDeniedException)
+    async def paper_permission_denied_handler(
+        request: Request,
+        exc: PaperPermissionDeniedException,
+    ):
+        logger.warning(exc.message)
+
+        return JSONResponse(
+            status_code=403,
+            content={
+                "success": False,
+                "error": {
+                    "code": 403,
                     "message": exc.message,
                 },
             },

@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text
+from sqlalchemy import Column, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
 
 from app.database.database import Base
 
@@ -12,3 +13,14 @@ class ResearchPaper(Base):
     abstract = Column(Text)
     source = Column(String(100))
     url = Column(String(500))
+
+    owner_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False,
+    )
+
+    owner = relationship(
+        "User",
+        back_populates="papers",
+    )

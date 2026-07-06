@@ -14,6 +14,7 @@ class PaperRepository:
     def create_paper(
         self,
         paper: ResearchPaperCreate,
+        owner_id: int,
     ):
         new_paper = ResearchPaper(
             title=paper.title,
@@ -21,6 +22,7 @@ class PaperRepository:
             abstract=paper.abstract,
             source=paper.source,
             url=str(paper.url) if paper.url else None,
+            owner_id=owner_id,
         )
 
         self.db.add(new_paper)
@@ -29,8 +31,20 @@ class PaperRepository:
 
         return new_paper
 
-    def get_all_papers(self):
-        return self.db.query(ResearchPaper).all()
+    def get_all_papers(
+        self,
+        page: int,
+        size: int,
+    ):
+        return (
+            self.db.query(ResearchPaper)
+            .offset((page - 1) * size)
+            .limit(size)
+            .all()
+        )
+
+    def count_papers(self):
+        return self.db.query(ResearchPaper).count()
 
     def get_paper_by_id(
         self,

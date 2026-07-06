@@ -68,3 +68,11 @@ class ResearchPaperResponse(ResearchPaperBase):
     id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PaginatedResearchPaperResponse(BaseModel):
+    items: list[ResearchPaperResponse]
+    page: int
+    size: int
+    total: int
+    pages: int

@@ -1,6 +1,12 @@
-from app.exceptions.custom_exceptions import PaperNotFoundException
+from math import ceil
+
+from app.exceptions.custom_exceptions import (
+    PaperNotFoundException,
+    PaperPermissionDeniedException,
+)
 from app.repositories.paper_repository import PaperRepository
 from app.schemas.research_paper import (
+    PaginatedResearchPaperResponse,
     ResearchPaperCreate,
     ResearchPaperUpdate,
 )
@@ -13,11 +19,34 @@ class PaperService:
     def create_paper(
         self,
         paper: ResearchPaperCreate,
+        owner_id: int,
     ):
-        return self.repository.create_paper(paper)
+        return self.repository.create_paper(
+            paper,
+            owner_id,
+        )
 
-    def get_all_papers(self):
-        return self.repository.get_all_papers()
+    def get_all_papers(
+        self,
+        page: int,
+        size: int,
+    ):
+        papers = self.repository.get_all_papers(
+            page,
+            size,
+        )
+
+        total = self.repository.count_papers()
+
+        pages = ceil(total / size) if total > 0 else 0
+
+        return PaginatedResearchPaperResponse(
+            items=papers,
+            page=page,
+            size=size,
+            total=total,
+            pages=pages,
+        )
 
     def get_paper_by_id(
         self,
@@ -29,6 +58,14 @@ class PaperService:
             raise PaperNotFoundException(paper_id)
 
         return paper
+
+    def verify_paper_owner(
+        self,
+        paper,
+        user_id: int,
+    ):
+        if paper.owner_id != user_id:
+            raise PaperPermissionDeniedException()
 
     def update_paper(
         self,
