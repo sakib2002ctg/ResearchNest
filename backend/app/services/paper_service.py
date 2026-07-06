@@ -32,12 +32,34 @@ class PaperService:
         size: int,
     ):
         papers = self.repository.get_all_papers(
-            page,
-            size,
+            skip=(page - 1) * size,
+            limit=size,
         )
 
         total = self.repository.count_papers()
+        pages = ceil(total / size) if total > 0 else 0
 
+        return PaginatedResearchPaperResponse(
+            items=papers,
+            page=page,
+            size=size,
+            total=total,
+            pages=pages,
+        )
+
+    def search_papers(
+        self,
+        query: str,
+        page: int,
+        size: int,
+    ):
+        papers = self.repository.search_papers(
+            query=query,
+            skip=(page - 1) * size,
+            limit=size,
+        )
+
+        total = self.repository.count_search_results(query)
         pages = ceil(total / size) if total > 0 else 0
 
         return PaginatedResearchPaperResponse(

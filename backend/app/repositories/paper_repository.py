@@ -1,3 +1,4 @@
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.models.research_paper import ResearchPaper
@@ -15,72 +16,92 @@ class PaperRepository:
         self,
         paper: ResearchPaperCreate,
         owner_id: int,
-    ):
-        new_paper = ResearchPaper(
-            title=paper.title,
-            authors=paper.authors,
-            abstract=paper.abstract,
-            source=paper.source,
-            url=str(paper.url) if paper.url else None,
+    ) -> ResearchPaper:
+        db_paper = ResearchPaper(
+            **paper.model_dump(),
             owner_id=owner_id,
         )
 
-        self.db.add(new_paper)
+        self.db.add(db_paper)
         self.db.commit()
-        self.db.refresh(new_paper)
+        self.db.refresh(db_paper)
 
-        return new_paper
+        return db_paper
 
-    def get_all_papers(
-        self,
-        page: int,
-        size: int,
-    ):
-        return (
-            self.db.query(ResearchPaper)
-            .offset((page - 1) * size)
-            .limit(size)
-            .all()
-        )
-
-    def count_papers(self):
-        return self.db.query(ResearchPaper).count()
-
-    def get_paper_by_id(
-        self,
-        paper_id: int,
-    ):
+    def get_paper_by_id(self, paper_id: int) -> ResearchPaper | None:
         return (
             self.db.query(ResearchPaper)
             .filter(ResearchPaper.id == paper_id)
             .first()
         )
 
+    def get_all_papers(
+        self,
+        skip: int = 0,
+        limit: int = 10,
+    ) -> list[ResearchPaper]:
+        return (
+            self.db.query(ResearchPaper)
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+    def count_papers(self) -> int:
+        return self.db.query(func.count(ResearchPaper.id)).scalar()
+
+    def search_papers(
+        self,
+        query: str,
+        skip: int = 0,
+        limit: int = 10,
+    ) -> list[ResearchPaper]:
+        search = f"%{query}%"
+
+        return (
+            self.db.query(ResearchPaper)
+            .filter(
+                or_(
+                    ResearchPaper.title.ilike(search),
+                    ResearchPaper.authors.ilike(search),
+                    ResearchPaper.abstract.ilike(search),
+                )
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+    def count_search_results(self, query: str) -> int:
+        search = f"%{query}%"
+
+        return (
+            self.db.query(func.count(ResearchPaper.id))
+            .filter(
+                or_(
+                    ResearchPaper.title.ilike(search),
+                    ResearchPaper.authors.ilike(search),
+                    ResearchPaper.abstract.ilike(search),
+                )
+            )
+            .scalar()
+        )
+
     def update_paper(
         self,
-        paper: ResearchPaper,
-        updated_paper: ResearchPaperUpdate,
-    ):
-        update_data = updated_paper.model_dump(exclude_unset=True)
-
-        if "url" in update_data:
-            update_data["url"] = (
-                str(update_data["url"])
-                if update_data["url"]
-                else None
-            )
+        db_paper: ResearchPaper,
+        paper_update: ResearchPaperUpdate,
+    ) -> ResearchPaper:
+        update_data = paper_update.model_dump(exclude_unset=True)
 
         for field, value in update_data.items():
-            setattr(paper, field, value)
+            setattr(db_paper, field, value)
 
         self.db.commit()
-        self.db.refresh(paper)
+        self.db.refresh(db_paper)
 
-        return paper
+        return db_paper
 
-    def delete_paper(
-        self,
-        paper: ResearchPaper,
-    ):
-        self.db.delete(paper)
+    def delete_paper(self, db_paper: ResearchPaper) -> None:
+        self.db.delete(db_paper)
         self.db.commit()

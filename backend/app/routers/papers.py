@@ -41,6 +41,21 @@ def get_all_papers(
     )
 
 
+# -------------------- SEARCH -------------------- #
+@router.get("/search", response_model=PaginatedResearchPaperResponse)
+def search_papers(
+    q: str = Query(..., min_length=1),
+    page: int = Query(1, ge=1),
+    size: int = Query(10, ge=1, le=100),
+    service: PaperService = Depends(get_paper_service),
+):
+    return service.search_papers(
+        query=q,
+        page=page,
+        size=size,
+    )
+
+
 @router.get("/{paper_id}", response_model=ResearchPaperResponse)
 def get_paper(
     paper_id: int,
