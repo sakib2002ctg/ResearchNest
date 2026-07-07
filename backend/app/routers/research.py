@@ -1,18 +1,41 @@
-from fastapi import APIRouter
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, Query
 
-router = APIRouter()
+from app.dependencies.research_dependencies import (
+    get_research_service,
+)
+from app.schemas.external_paper import (
+    ExternalPaperSearchResponse,
+)
+from app.services.research_service import (
+    ResearchService,
+)
+
+router = APIRouter(
+    prefix="/research",
+    tags=["Research"],
+)
 
 
-class ResearchPaper(BaseModel):
-    title: str
-    authors: str
-    abstract: str
-
-
-@router.post("/research")
-def create_research(paper: ResearchPaper):
-    return {
-        "message": "Research paper received successfully!",
-        "paper": paper
-    }
+@router.get(
+    "/search",
+    response_model=ExternalPaperSearchResponse,
+)
+def search_research_papers(
+    q: str = Query(
+        ...,
+        min_length=2,
+        description="Search query",
+    ),
+    limit: int = Query(
+        10,
+        ge=1,
+        le=50,
+    ),
+    service: ResearchService = Depends(
+        get_research_service,
+    ),
+):
+    return service.search_papers(
+        query=q,
+        limit=limit,
+    )
