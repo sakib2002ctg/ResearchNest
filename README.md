@@ -98,3 +98,130 @@ ResearchNest is evolving into an AI research platform capable of:
 ## 📄 License
 
 This project is currently under active development.
+
+---
+
+# 📁 Project Structure
+
+```text
+ResearchNest/
+├── backend/
+│   ├── app/
+│   │   ├── clients/
+│   │   ├── core/
+│   │   ├── database/
+│   │   ├── dependencies/
+│   │   ├── exceptions/
+│   │   ├── middleware/
+│   │   ├── models/
+│   │   ├── repositories/
+│   │   ├── routers/
+│   │   ├── schemas/
+│   │   ├── services/
+│   │   └── tests/
+│   ├── alembic/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── pyproject.toml
+│
+├── docker-compose.yml
+│
+└── README.md
+```
+
+---
+
+# 🚀 Local Development
+
+Clone the repository:
+
+```bash
+git clone <repository-url>
+cd ResearchNest
+```
+
+Create and activate a virtual environment:
+
+```bash
+cd backend
+
+python -m venv .venv
+
+# Windows
+.venv\Scripts\activate
+
+# Linux / macOS
+source .venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Run the application:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Open:
+
+```
+http://localhost:8000/docs
+```
+
+---
+
+# 🐳 Docker
+
+Build and start the application:
+
+```bash
+docker compose up --build
+```
+
+Stop:
+
+```bash
+docker compose down
+```
+
+---
+
+# 🧪 Running Tests
+
+Run all tests:
+
+```bash
+pytest
+```
+
+Run coverage:
+
+```bash
+pytest --cov=app
+```
+
+---
+
+# ⚙️ Environment Variables
+
+Local development:
+
+```
+backend/.env
+```
+
+Docker:
+
+```
+backend/.env.docker
+```
+
+Template:
+
+```
+backend/.env.example
+```
