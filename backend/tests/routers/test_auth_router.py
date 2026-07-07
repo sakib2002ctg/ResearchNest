@@ -1,4 +1,3 @@
-import pytest
 
 
 def test_register_user(client, user_payload):

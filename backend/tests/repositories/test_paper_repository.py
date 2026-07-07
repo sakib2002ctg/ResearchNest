@@ -1,6 +1,5 @@
 import pytest
 
-from app.models.research_paper import ResearchPaper
 from app.repositories.paper_repository import PaperRepository
 from app.schemas.research_paper import (
     ResearchPaperCreate,

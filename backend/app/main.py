@@ -1,5 +1,4 @@
 from contextlib import asynccontextmanager
-from app.models.user import User
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -9,10 +8,10 @@ from app.core.logging import logger
 from app.database.database import engine
 from app.exceptions.handlers import register_exception_handlers
 from app.middleware.logging import LoggingMiddleware
+from app.routers.auth import router as auth_router
 from app.routers.papers import router as papers_router
 from app.routers.research import router as research_router
 from app.routers.users import router as users_router
-from app.routers.auth import router as auth_router
 
 
 @asynccontextmanager
