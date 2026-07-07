@@ -43,9 +43,7 @@ class UserService:
         ):
             raise ValueError("Invalid email or password.")
 
-        access_token = create_access_token(
-            data={"sub": user.email}
-        )
+        access_token = create_access_token(data={"sub": user.email})
 
         return Token(
             access_token=access_token,

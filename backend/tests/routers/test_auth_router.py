@@ -1,5 +1,3 @@
-
-
 def test_register_user(client, user_payload):
     response = client.post(
         "/auth/register",

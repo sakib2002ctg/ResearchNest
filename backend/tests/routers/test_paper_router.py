@@ -21,6 +21,7 @@ def create_paper(client):
 # CREATE
 # -------------------------
 
+
 def test_create_paper(authenticated_client):
     data = create_paper(authenticated_client)
 
@@ -48,12 +49,11 @@ def test_create_paper_unauthorized(client):
 # GET
 # -------------------------
 
+
 def test_get_paper(authenticated_client):
     paper = create_paper(authenticated_client)
 
-    response = authenticated_client.get(
-        f"/papers/{paper['id']}"
-    )
+    response = authenticated_client.get(f"/papers/{paper['id']}")
 
     assert response.status_code == status.HTTP_200_OK
 
@@ -72,6 +72,7 @@ def test_get_nonexistent_paper(client):
 # -------------------------
 # UPDATE
 # -------------------------
+
 
 def test_owner_can_update(authenticated_client):
     paper = create_paper(authenticated_client)
@@ -131,22 +132,17 @@ def test_non_owner_cannot_update(
 # DELETE
 # -------------------------
 
+
 def test_owner_can_delete(authenticated_client):
     paper = create_paper(authenticated_client)
 
-    response = authenticated_client.delete(
-        f"/papers/{paper['id']}"
-    )
+    response = authenticated_client.delete(f"/papers/{paper['id']}")
 
     assert response.status_code == status.HTTP_200_OK
 
-    assert response.json() == {
-        "message": "Paper deleted successfully"
-    }
+    assert response.json() == {"message": "Paper deleted successfully"}
 
-    response = authenticated_client.get(
-        f"/papers/{paper['id']}"
-    )
+    response = authenticated_client.get(f"/papers/{paper['id']}")
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -188,6 +184,7 @@ def test_non_owner_cannot_delete(
 # VALIDATION
 # -------------------------
 
+
 def test_create_validation_error(authenticated_client):
     response = authenticated_client.post(
         "/papers/",
@@ -204,6 +201,7 @@ def test_create_validation_error(authenticated_client):
 # PAGINATION
 # -------------------------
 
+
 def test_get_all_papers(authenticated_client):
     for i in range(3):
         authenticated_client.post(
@@ -217,9 +215,7 @@ def test_get_all_papers(authenticated_client):
             },
         )
 
-    response = authenticated_client.get(
-        "/papers?page=1&size=2"
-    )
+    response = authenticated_client.get("/papers?page=1&size=2")
 
     assert response.status_code == status.HTTP_200_OK
 
@@ -235,6 +231,7 @@ def test_get_all_papers(authenticated_client):
 # -------------------------
 # SEARCH
 # -------------------------
+
 
 def test_search_papers(authenticated_client):
     authenticated_client.post(
@@ -259,9 +256,7 @@ def test_search_papers(authenticated_client):
         },
     )
 
-    response = authenticated_client.get(
-        "/papers/search?q=FastAPI"
-    )
+    response = authenticated_client.get("/papers/search?q=FastAPI")
 
     assert response.status_code == status.HTTP_200_OK
 
@@ -275,9 +270,7 @@ def test_search_papers(authenticated_client):
 def test_search_no_results(authenticated_client):
     create_paper(authenticated_client)
 
-    response = authenticated_client.get(
-        "/papers/search?q=TensorFlow"
-    )
+    response = authenticated_client.get("/papers/search?q=TensorFlow")
 
     assert response.status_code == status.HTTP_200_OK
 

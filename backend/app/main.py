@@ -50,6 +50,7 @@ app.include_router(papers_router)
 app.include_router(users_router)
 app.include_router(auth_router)
 
+
 class Student(BaseModel):
     name: str
     age: int
@@ -57,43 +58,29 @@ class Student(BaseModel):
 
 @app.get("/")
 def home():
-    return {
-        "message": "Welcome to ResearchNest!"
-    }
+    return {"message": "Welcome to ResearchNest!"}
 
 
 @app.get("/health")
 def health():
-    return {
-        "status": "OK"
-    }
+    return {"status": "OK"}
 
 
 @app.get("/about")
 def about():
-    return {
-        "project": "ResearchNest",
-        "version": "1.0"
-    }
+    return {"project": "ResearchNest", "version": "1.0"}
 
 
 @app.get("/greet/{name}")
 def greet(name: str):
-    return {
-        "message": f"Hello {name}"
-    }
+    return {"message": f"Hello {name}"}
 
 
 @app.get("/add")
 def add(a: int, b: int):
-    return {
-        "result": a + b
-    }
+    return {"result": a + b}
 
 
 @app.post("/student")
 def create_student(student: Student):
-    return {
-        "message": "Student created successfully!",
-        "student": student
-    }
+    return {"message": "Student created successfully!", "student": student}

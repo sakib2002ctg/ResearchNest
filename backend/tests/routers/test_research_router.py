@@ -38,9 +38,7 @@ def override_research_service():
 
 
 def test_search_success(client):
-    client.app.dependency_overrides[
-        get_research_service
-    ] = override_research_service
+    client.app.dependency_overrides[get_research_service] = override_research_service
 
     response = client.get("/research/search?q=transformer")
 
@@ -53,9 +51,7 @@ def test_search_success(client):
 
 
 def test_search_empty(client):
-    client.app.dependency_overrides[
-        get_research_service
-    ] = override_research_service
+    client.app.dependency_overrides[get_research_service] = override_research_service
 
     response = client.get("/research/search?q=empty")
 
@@ -86,9 +82,7 @@ def test_limit_validation_high(client):
 
 
 def test_response_schema(client):
-    client.app.dependency_overrides[
-        get_research_service
-    ] = override_research_service
+    client.app.dependency_overrides[get_research_service] = override_research_service
 
     response = client.get("/research/search?q=transformer")
 

@@ -99,6 +99,4 @@ def delete_paper(
 
     service.delete_paper(paper)
 
-    return {
-        "message": "Paper deleted successfully"
-    }
+    return {"message": "Paper deleted successfully"}

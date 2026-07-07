@@ -67,9 +67,7 @@ def test_search_papers_authors():
         query="transformer",
     )
 
-    assert result.papers[0].authors == [
-        "Ashish Vaswani"
-    ]
+    assert result.papers[0].authors == ["Ashish Vaswani"]
 
 
 def test_search_papers_limit_argument():

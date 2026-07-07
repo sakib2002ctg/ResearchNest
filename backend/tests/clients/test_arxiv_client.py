@@ -100,9 +100,7 @@ def test_search_returns_authors(monkeypatch):
 
     result = client.search("transformer")
 
-    assert result.papers[0].authors == [
-        "Ashish Vaswani"
-    ]
+    assert result.papers[0].authors == ["Ashish Vaswani"]
 
 
 def test_search_empty_results(monkeypatch):

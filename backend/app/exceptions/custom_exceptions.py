@@ -14,9 +14,7 @@ class PaperNotFoundException(ResearchNestException):
     """
 
     def __init__(self, paper_id: int):
-        super().__init__(
-            f"Research paper with id {paper_id} not found."
-        )
+        super().__init__(f"Research paper with id {paper_id} not found.")
         self.paper_id = paper_id
 
 
@@ -27,6 +25,4 @@ class PaperPermissionDeniedException(ResearchNestException):
     """
 
     def __init__(self):
-        super().__init__(
-            "You do not have permission to perform this action."
-        )
+        super().__init__("You do not have permission to perform this action.")

@@ -37,10 +37,7 @@ class ArxivClient(ResearchProvider):
             papers.append(
                 ExternalPaper(
                     title=entry.title.strip(),
-                    authors=[
-                        author.name
-                        for author in entry.authors
-                    ],
+                    authors=[author.name for author in entry.authors],
                     abstract=entry.summary.strip(),
                     url=entry.link,
                     source="arXiv",

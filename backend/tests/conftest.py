@@ -54,6 +54,7 @@ def client(db):
 # User Fixtures
 # -------------------------
 
+
 @pytest.fixture
 def user_payload():
     return {
@@ -110,6 +111,7 @@ def authenticated_client(client, access_token):
 # Paper Fixtures
 # -------------------------
 
+
 @pytest.fixture
 def paper_payload():
     return {
@@ -119,6 +121,8 @@ def paper_payload():
         "source": "NeurIPS",
         "url": "https://example.com/paper",
     }
+
+
 @pytest.fixture(scope="function")
 def another_user(db):
     user = User(

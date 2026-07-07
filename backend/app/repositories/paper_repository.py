@@ -29,28 +29,17 @@ class PaperRepository:
         return db_paper
 
     def get_paper_by_id(self, paper_id: int) -> ResearchPaper | None:
-        return (
-            self.db.query(ResearchPaper)
-            .filter(ResearchPaper.id == paper_id)
-            .first()
-        )
+        return self.db.query(ResearchPaper).filter(ResearchPaper.id == paper_id).first()
 
     def get_all_papers(
         self,
         skip: int = 0,
         limit: int = 10,
     ) -> list[ResearchPaper]:
-        return (
-            self.db.query(ResearchPaper)
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
+        return self.db.query(ResearchPaper).offset(skip).limit(limit).all()
 
     def count_papers(self) -> int:
-        return self.db.query(
-            func.count(ResearchPaper.id)
-        ).scalar()
+        return self.db.query(func.count(ResearchPaper.id)).scalar()
 
     def search_papers(
         self,
@@ -81,9 +70,7 @@ class PaperRepository:
         search = f"%{query}%"
 
         return (
-            self.db.query(
-                func.count(ResearchPaper.id)
-            )
+            self.db.query(func.count(ResearchPaper.id))
             .filter(
                 or_(
                     ResearchPaper.title.ilike(search),
