@@ -225,3 +225,62 @@ Template:
 ```
 backend/.env.example
 ```
+## 🏗️ Architecture
+
+```mermaid
+flowchart TD
+
+    Client[Client / Frontend]
+
+    Client --> Router
+    Router --> Service
+    Service --> Repository
+    Service --> ExternalProvider
+
+    Repository --> PostgreSQL[(PostgreSQL)]
+    ExternalProvider --> ArxivAPI[arXiv API]
+
+    Router --> Auth
+    Auth --> JWT
+
+    Repository --> SQLAlchemy
+```
+### Layered Architecture
+
+```text
+┌───────────────────────────────┐
+│          FastAPI Routers      │
+├───────────────────────────────┤
+│          Services             │
+├───────────────────────────────┤
+│ Repositories │ External APIs  │
+├───────────────────────────────┤
+│ PostgreSQL   │ arXiv API      │
+└───────────────────────────────┘
+```
+## 📡 API Overview
+
+| Endpoint | Method | Authentication | Description |
+|----------|--------|----------------|-------------|
+| `/auth/login` | POST | ❌ | Authenticate a user and return a JWT access token. |
+| `/papers` | GET | ✅ | Retrieve all papers owned by the authenticated user. |
+| `/papers` | POST | ✅ | Create a new research paper. |
+| `/papers/{paper_id}` | GET | ✅ | Retrieve a specific research paper by ID. |
+| `/papers/{paper_id}` | PUT | ✅ | Update an existing research paper. |
+| `/papers/{paper_id}` | DELETE | ✅ | Delete a research paper. |
+| `/papers/search` | GET | ✅ | Search papers with pagination support. |
+| `/research/search` | GET | ❌ | Search external research papers using the arXiv API. |
+
+### Highlights
+
+- 🔐 JWT Authentication
+- 🏗️ Clean Architecture
+- 📦 Repository Pattern
+- 🔄 Dependency Injection
+- 🐘 PostgreSQL
+- 🚀 FastAPI
+- 🧪 63 Automated Tests
+- 🐳 Docker & Docker Compose
+- ⚙️ GitHub Actions CI
+- 🎨 Ruff + Black Formatting
+- 🔍 arXiv Research Integration
