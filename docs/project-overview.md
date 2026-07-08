@@ -1,55 +1,156 @@
-# ResearchNest
+# Project Overview
 
-**Tagline:** Search Smarter. Research Better.
+## ResearchNest
 
-## Problem Statement
+**Search Smarter. Research Better.**
 
-Students and researchers spend significant time searching, reading, comparing, and understanding research papers. ResearchNest simplifies this process using Artificial Intelligence.
+ResearchNest is a production-oriented backend platform designed to help researchers discover, organize, and explore scientific literature. The project is built as a learning platform for modern backend engineering, software architecture, and MLOps practices while following industry-standard development workflows.
 
-## Goal
+---
 
-Build an AI-powered research assistant that enables users to search, summarize, compare, organize, and interact with research papers.
+# Vision
 
-## Target Users
+ResearchNest aims to become an AI-powered research assistant capable of:
 
-- Students
-- Researchers
-- Professors
-- Administrators
+- Discovering research papers from multiple academic sources
+- Managing personal research libraries
+- Providing intelligent paper recommendations
+- Enabling semantic search across scientific literature
+- Generating paper summaries
+- Supporting Retrieval-Augmented Generation (RAG)
+- Allowing users to chat with uploaded PDF documents
 
-## Core Features (MVP)
+---
 
-- User Authentication
-- Paper Search
-- Save Papers
-- PDF Upload
-- AI Summary
-- Chat with Papers
-- Citation Generator
+# Objectives
 
-## Tech Stack
+The project focuses on learning and applying professional software engineering principles, including:
 
-### Frontend
-- React
-- TypeScript
-- Tailwind CSS
+- Clean Architecture
+- SOLID Principles
+- Repository Pattern
+- Service Layer Pattern
+- Dependency Injection
+- REST API Design
+- Authentication & Authorization
+- Testing and Test Automation
+- CI/CD Pipelines
+- Containerization with Docker
+- Production Deployment
+- MLOps Best Practices
 
-### Backend
+---
+
+# Current Features
+
+## Authentication
+
+- JWT Authentication
+- Password Hashing
+- Secure Login
+- Protected Endpoints
+
+## Research Paper Management
+
+- Create Papers
+- Read Papers
+- Update Papers
+- Delete Papers
+- Ownership Authorization
+
+## Search
+
+- Keyword Search
+- Pagination Support
+
+## External Research Integration
+
+Currently supported:
+
+- arXiv API
+
+Planned integrations:
+
+- Semantic Scholar
+- Crossref
+- PubMed
+
+---
+
+# Technology Stack
+
+## Backend
+
+- Python 3.13
 - FastAPI
-
-### Database
+- SQLAlchemy
 - PostgreSQL
+- Alembic
+- Pydantic v2
 
-### AI
-- Hugging Face Transformers
-- Sentence Transformers
+## Testing
 
-### Vector Database
-- ChromaDB
+- Pytest
+- pytest-cov
+- Mocking
+- Dependency Overrides
 
-### DevOps
+## DevOps
+
 - Docker
+- Docker Compose
 - GitHub Actions
+- Ruff
+- Black
+- pre-commit
 
-### Cloud
-- AWS
+---
+
+# Architecture
+
+ResearchNest follows a layered architecture:
+
+```text
+Router
+    ↓
+Service
+    ↓
+Repository / External Client
+    ↓
+Database / External APIs
+```
+
+This design promotes maintainability, testability, and scalability.
+
+---
+
+# Future Direction
+
+Future releases will introduce:
+
+- Async FastAPI
+- Redis Caching
+- Multi-provider Research
+- Recommendation Engine
+- Embeddings
+- Paper Summarization
+- PDF Upload
+- Vector Database
+- Retrieval-Augmented Generation (RAG)
+- Chat with PDFs
+- MLflow
+- DVC
+- Model Registry
+- Monitoring
+
+---
+
+# Project Status
+
+Current Version:
+
+**v1.4.0**
+
+Development Status:
+
+**Actively Developed**

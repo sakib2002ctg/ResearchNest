@@ -284,3 +284,17 @@ flowchart TD
 - ⚙️ GitHub Actions CI
 - 🎨 Ruff + Black Formatting
 - 🔍 arXiv Research Integration
+
+## 📖 Documentation
+
+Detailed project documentation is available in the `docs/` directory.
+
+| Document | Description |
+|----------|-------------|
+| [Documentation Index](docs/README.md) | Documentation home |
+| [Project Overview](docs/project-overview.md) | Vision, goals, and features |
+| [System Architecture](docs/system-architecture.md) | Architecture and design |
+| [API Documentation](docs/api.md) | REST API reference |
+| [Development Guide](docs/development.md) | Local development setup |
+| [Deployment Guide](docs/deployment.md) | Docker and deployment |
+| [Roadmap](docs/roadmap.md) | Future plans |
