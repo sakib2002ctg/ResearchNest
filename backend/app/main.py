@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from sqlalchemy import text
 
+from app.api.v1 import api_router
 from app.core.logging import logger
 from app.database.database import engine
 from app.exceptions.handlers import register_exception_handlers
@@ -44,7 +45,10 @@ app.add_middleware(LoggingMiddleware)
 # Register global exception handlers
 register_exception_handlers(app)
 
-# Routers
+# Versioned API
+app.include_router(api_router)
+
+# Temporary legacy routes (remove after test migration)
 app.include_router(research_router)
 app.include_router(papers_router)
 app.include_router(users_router)
@@ -83,4 +87,7 @@ def add(a: int, b: int):
 
 @app.post("/student")
 def create_student(student: Student):
-    return {"message": "Student created successfully!", "student": student}
+    return {
+        "message": "Student created successfully!",
+        "student": student,
+    }
