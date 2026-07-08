@@ -65,11 +65,6 @@ def home():
     return {"message": "Welcome to ResearchNest!"}
 
 
-@app.get("/health")
-def health():
-    return {"status": "OK"}
-
-
 @app.get("/about")
 def about():
     return {"project": "ResearchNest", "version": "1.0"}
