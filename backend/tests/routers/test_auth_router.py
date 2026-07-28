@@ -1,6 +1,6 @@
 def test_register_user(client, user_payload):
     response = client.post(
-        "/auth/register",
+        "/api/v1/auth/register",
         json=user_payload,
     )
 
@@ -15,12 +15,12 @@ def test_register_user(client, user_payload):
 
 def test_register_duplicate_email(client, user_payload):
     client.post(
-        "/auth/register",
+        "/api/v1/auth/register",
         json=user_payload,
     )
 
     response = client.post(
-        "/auth/register",
+        "/api/v1/auth/register",
         json=user_payload,
     )
 
@@ -30,12 +30,12 @@ def test_register_duplicate_email(client, user_payload):
 
 def test_register_duplicate_username(client, user_payload):
     client.post(
-        "/auth/register",
+        "/api/v1/auth/register",
         json=user_payload,
     )
 
     response = client.post(
-        "/auth/register",
+        "/api/v1/auth/register",
         json={
             "username": user_payload["username"],
             "email": "another@example.com",
@@ -49,12 +49,12 @@ def test_register_duplicate_username(client, user_payload):
 
 def test_login_success(client, user_payload, login_payload):
     client.post(
-        "/auth/register",
+        "/api/v1/auth/register",
         json=user_payload,
     )
 
     response = client.post(
-        "/auth/login",
+        "/api/v1/auth/login",
         json=login_payload,
     )
 
@@ -68,12 +68,12 @@ def test_login_success(client, user_payload, login_payload):
 
 def test_login_invalid_password(client, user_payload):
     client.post(
-        "/auth/register",
+        "/api/v1/auth/register",
         json=user_payload,
     )
 
     response = client.post(
-        "/auth/login",
+        "/api/v1/auth/login",
         json={
             "email": user_payload["email"],
             "password": "wrongpassword",
@@ -86,7 +86,7 @@ def test_login_invalid_password(client, user_payload):
 
 def test_login_unknown_email(client):
     response = client.post(
-        "/auth/login",
+        "/api/v1/auth/login",
         json={
             "email": "unknown@example.com",
             "password": "password123",
@@ -99,7 +99,7 @@ def test_login_unknown_email(client):
 
 def test_get_current_user(authenticated_client):
     response = authenticated_client.get(
-        "/auth/me",
+        "/api/v1/auth/me",
     )
 
     assert response.status_code == 200
@@ -112,7 +112,7 @@ def test_get_current_user(authenticated_client):
 
 def test_get_current_user_unauthorized(client):
     response = client.get(
-        "/auth/me",
+        "/api/v1/auth/me",
     )
 
     assert response.status_code == 401

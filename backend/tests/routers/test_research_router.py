@@ -40,7 +40,7 @@ def override_research_service():
 def test_search_success(client):
     client.app.dependency_overrides[get_research_service] = override_research_service
 
-    response = client.get("/research/search?q=transformer")
+    response = client.get("/api/v1/research/search?q=transformer")
 
     assert response.status_code == 200
 
@@ -53,7 +53,7 @@ def test_search_success(client):
 def test_search_empty(client):
     client.app.dependency_overrides[get_research_service] = override_research_service
 
-    response = client.get("/research/search?q=empty")
+    response = client.get("/api/v1/research/search?q=empty")
 
     assert response.status_code == 200
 
@@ -64,19 +64,19 @@ def test_search_empty(client):
 
 
 def test_query_validation(client):
-    response = client.get("/research/search?q=a")
+    response = client.get("/api/v1/research/search?q=a")
 
     assert response.status_code == 422
 
 
 def test_limit_validation_low(client):
-    response = client.get("/research/search?q=test&limit=0")
+    response = client.get("/api/v1/research/search?q=test&limit=0")
 
     assert response.status_code == 422
 
 
 def test_limit_validation_high(client):
-    response = client.get("/research/search?q=test&limit=100")
+    response = client.get("/api/v1/research/search?q=test&limit=100")
 
     assert response.status_code == 422
 
@@ -84,7 +84,7 @@ def test_limit_validation_high(client):
 def test_response_schema(client):
     client.app.dependency_overrides[get_research_service] = override_research_service
 
-    response = client.get("/research/search?q=transformer")
+    response = client.get("/api/v1/research/search?q=transformer")
 
     assert response.status_code == 200
 

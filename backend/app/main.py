@@ -9,10 +9,6 @@ from app.core.logging import logger
 from app.database.database import engine
 from app.exceptions.handlers import register_exception_handlers
 from app.middleware.logging import LoggingMiddleware
-from app.routers.auth import router as auth_router
-from app.routers.papers import router as papers_router
-from app.routers.research import router as research_router
-from app.routers.users import router as users_router
 
 
 @asynccontextmanager
@@ -48,11 +44,11 @@ register_exception_handlers(app)
 # Versioned API
 app.include_router(api_router)
 
-# Temporary legacy routes (remove after test migration)
-app.include_router(research_router)
-app.include_router(papers_router)
-app.include_router(users_router)
-app.include_router(auth_router)
+
+# -------------------------------------------------------------------
+# Temporary demo endpoints
+# These will be removed in Cleanup Sprint Step 3.
+# -------------------------------------------------------------------
 
 
 class Student(BaseModel):

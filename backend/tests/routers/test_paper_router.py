@@ -3,7 +3,7 @@ from fastapi import status
 
 def create_paper(client):
     response = client.post(
-        "/papers/",
+        "/api/v1/papers/",
         json={
             "title": "Attention Is All You Need",
             "authors": "Ashish Vaswani",
@@ -32,7 +32,7 @@ def test_create_paper(authenticated_client):
 
 def test_create_paper_unauthorized(client):
     response = client.post(
-        "/papers/",
+        "/api/v1/papers/",
         json={
             "title": "Paper",
             "authors": "Author",
@@ -53,7 +53,7 @@ def test_create_paper_unauthorized(client):
 def test_get_paper(authenticated_client):
     paper = create_paper(authenticated_client)
 
-    response = authenticated_client.get(f"/papers/{paper['id']}")
+    response = authenticated_client.get(f"/api/v1/papers/{paper['id']}")
 
     assert response.status_code == status.HTTP_200_OK
 
@@ -64,7 +64,7 @@ def test_get_paper(authenticated_client):
 
 
 def test_get_nonexistent_paper(client):
-    response = client.get("/papers/999")
+    response = client.get("/api/v1/papers/999")
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -78,7 +78,7 @@ def test_owner_can_update(authenticated_client):
     paper = create_paper(authenticated_client)
 
     response = authenticated_client.put(
-        f"/papers/{paper['id']}",
+        f"/api/v1/papers/{paper['id']}",
         json={
             "title": "Updated Title",
         },
@@ -98,7 +98,7 @@ def test_non_owner_cannot_update(
     another_access_token,
 ):
     response = client.post(
-        "/papers/",
+        "/api/v1/papers/",
         headers={
             "Authorization": f"Bearer {access_token}",
         },
@@ -116,7 +116,7 @@ def test_non_owner_cannot_update(
     paper_id = response.json()["id"]
 
     response = client.put(
-        f"/papers/{paper_id}",
+        f"/api/v1/papers/{paper_id}",
         headers={
             "Authorization": f"Bearer {another_access_token}",
         },
@@ -136,13 +136,13 @@ def test_non_owner_cannot_update(
 def test_owner_can_delete(authenticated_client):
     paper = create_paper(authenticated_client)
 
-    response = authenticated_client.delete(f"/papers/{paper['id']}")
+    response = authenticated_client.delete(f"/api/v1/papers/{paper['id']}")
 
     assert response.status_code == status.HTTP_200_OK
 
     assert response.json() == {"message": "Paper deleted successfully"}
 
-    response = authenticated_client.get(f"/papers/{paper['id']}")
+    response = authenticated_client.get(f"/api/v1/papers/{paper['id']}")
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -153,7 +153,7 @@ def test_non_owner_cannot_delete(
     another_access_token,
 ):
     response = client.post(
-        "/papers/",
+        "/api/v1/papers/",
         headers={
             "Authorization": f"Bearer {access_token}",
         },
@@ -171,7 +171,7 @@ def test_non_owner_cannot_delete(
     paper_id = response.json()["id"]
 
     response = client.delete(
-        f"/papers/{paper_id}",
+        f"/api/v1/papers/{paper_id}",
         headers={
             "Authorization": f"Bearer {another_access_token}",
         },
@@ -187,7 +187,7 @@ def test_non_owner_cannot_delete(
 
 def test_create_validation_error(authenticated_client):
     response = authenticated_client.post(
-        "/papers/",
+        "/api/v1/papers/",
         json={
             "title": "",
             "authors": "Author",
@@ -205,7 +205,7 @@ def test_create_validation_error(authenticated_client):
 def test_get_all_papers(authenticated_client):
     for i in range(3):
         authenticated_client.post(
-            "/papers/",
+            "/api/v1/papers/",
             json={
                 "title": f"Paper {i}",
                 "authors": "Author",
@@ -215,7 +215,7 @@ def test_get_all_papers(authenticated_client):
             },
         )
 
-    response = authenticated_client.get("/papers?page=1&size=2")
+    response = authenticated_client.get("/api/v1/papers?page=1&size=2")
 
     assert response.status_code == status.HTTP_200_OK
 
@@ -235,7 +235,7 @@ def test_get_all_papers(authenticated_client):
 
 def test_search_papers(authenticated_client):
     authenticated_client.post(
-        "/papers/",
+        "/api/v1/papers/",
         json={
             "title": "FastAPI Guide",
             "authors": "Sebastian",
@@ -246,7 +246,7 @@ def test_search_papers(authenticated_client):
     )
 
     authenticated_client.post(
-        "/papers/",
+        "/api/v1/papers/",
         json={
             "title": "Machine Learning",
             "authors": "Andrew",
@@ -256,7 +256,7 @@ def test_search_papers(authenticated_client):
         },
     )
 
-    response = authenticated_client.get("/papers/search?q=FastAPI")
+    response = authenticated_client.get("/api/v1/papers/search?q=FastAPI")
 
     assert response.status_code == status.HTTP_200_OK
 
@@ -270,7 +270,7 @@ def test_search_papers(authenticated_client):
 def test_search_no_results(authenticated_client):
     create_paper(authenticated_client)
 
-    response = authenticated_client.get("/papers/search?q=TensorFlow")
+    response = authenticated_client.get("/api/v1/papers/search?q=TensorFlow")
 
     assert response.status_code == status.HTTP_200_OK
 
