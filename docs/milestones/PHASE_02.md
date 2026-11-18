@@ -1,8 +1,8 @@
 # Phase 02 — Public Platform
 
-Phase 02A completes the backend identity lifecycle for Module 01 and the account export required by Section 7.2. Phase 02B will build the Next.js frontend against these APIs. The Phase 01 checkpoint on `feat/v2-foundation` is `d0a42e6`.
+Phase 02A completes the backend identity lifecycle for Module 01 and the account export required by Section 7.2. Phase 02B scaffolds the bilingual Next.js client against those APIs. The Phase 01 checkpoint on `feat/v2-foundation` is `d0a42e6`.
 
-**Phase 02A status: complete — November 19, 2026.** Phase 02B has not started. The Phase 01 checkpoint uses the requested commit message, `feat(phase-01): complete engineering foundation and security hardening`; Phase 02A changes remain separate in the working tree.
+**Phase 02 status: complete — November 19, 2026.** Phase 02A is committed as `9a963c8` (`feat(phase-02a): complete identity lifecycle, verification, export, and dashboard APIs`). Phase 02B and the CORS update are in the current `feat/v2-foundation` working tree.
 
 ## Phase 02A — Identity and privacy API
 
@@ -44,11 +44,33 @@ The suite ran from `backend/` with Python 3.13.16 and pytest 9.1.1. Set `APP_NAM
 
 The live tests deliberately create and remove schema. Never point their database URLs at a development or production database containing application data. The independent CLI verification also used a disposable database, not the application's configured data store.
 
-## Phase 02B — Frontend checklist
+## Phase 02B — Frontend and CORS
 
-- [ ] Scaffold the Next.js and TypeScript app with a typed client for `/api/v1`, local environment configuration, and CI checks for lint, types, tests, and production build.
-- [ ] Set up browser session handling and protected routes. Keep credentials out of URLs, browser logs, and persistent JavaScript storage. Define CSRF protection for any cookie-based transport.
-- [ ] Build registration, sign-in, sign-out, email verification, resend, password reset, and password change. Test expired or reused tokens and sign-in after other sessions are revoked.
-- [ ] Build the dashboard with profile and verification status, saved papers, active sessions, and recent activity. Include empty, loading, error, and signed-out states.
-- [ ] Build account settings for English and Bangla language preferences, theme, privacy, external AI consent, session revocation, data export, and account deletion.
-- [ ] Verify registration through dashboard use and account recovery in end-to-end tests. Before public launch, validate real email delivery and apply rate limits to request and resend endpoints.
+- [x] Configure FastAPI CORS with explicit, validated `CORS_ORIGINS`, credentials, methods, and headers. Defaults support the two local Next.js origins. Wildcard origins are rejected.
+- [x] Scaffold a locked Next.js App Router, TypeScript, and Tailwind frontend with an environment example and typed `/api/v1` client.
+- [x] Add English and Bangla dictionaries/preferences and an in-header language switch. Theme preferences are applied to the document and sync from the account.
+- [x] Add responsive workspace shell and conceptual navigation. Later-phase routes are clearly marked previews and do not call unavailable AI services.
+- [x] Add public landing, about, privacy, and terms pages; bilingual login, registration, email verification, and password recovery.
+- [x] Add dashboard, arXiv discovery/save, private paper library/search/delete, and profile/preferences/security/session/export/account-deletion screens with loading, error, and empty states.
+- [x] Keep bearer credentials in memory only, omit cookie credentials, prevent credential forwarding on redirects, and mark API requests no-store. Reloading or closing the browser tab requires a fresh login.
+- [x] Add CI frontend install/test/typecheck/lint/build jobs and backend CORS preflight tests.
+- [ ] Before public launch, configure and validate real SMTP delivery, review production API/web origins, and conduct browser-based end-to-end UX and accessibility review.
+
+### Phase 02B verification
+
+| Check | Result |
+|---|---|
+| Frontend production build | Passed with Next.js 16.4.6. All 19 requested application routes were prerendered as static content. |
+| TypeScript | `npm run typecheck` passed. |
+| ESLint | `npm run lint` passed with zero warnings. |
+| Frontend API tests | **3 passed**; cover in-memory-only bearer storage, required API paths, no-cookie requests, no-store, and redirect protection. |
+| Backend CORS tests | **13 passed** for allowed preflight origins, credentials, methods/headers, blocked origins/methods/headers, legacy aliases, configurable origins, and rejection of wildcard/non-origin values. |
+| Full backend suite | **205 passed**, zero failures/skips/warnings with both disposable PostgreSQL test databases configured. Coverage: **97.43%**. |
+| Backend quality | Ruff, Black, and `git diff --check` passed. |
+| Local dependency install | Completed using Node 24.22.1 and npm 11.19.1. The install was bounded to avoid hanging on network issues. |
+
+The production build was run with the example API base `https://api.invalid/api/v1`; build-time rendering does not make live API calls. Functional browser checks against a running API, production SMTP delivery, final production-origin configuration, and keyboard/screen-reader review remain pre-launch tasks.
+
+Browser access tokens are held in memory only. They are not stored in local/session storage, cookies, URLs, or logs. A refresh or a newly opened tab requires a fresh login; the server validates and revokes sessions. Only the language preference is stored locally. External-AI consent defaults off, and the preview routes are clearly labeled future-phase work.
+
+Frontend checks ran on Node 24.22.1. `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` passed. The production build prerendered all 19 application routes. Backend checks ran on Python 3.13.16 with both PostgreSQL integration databases set to separate disposable local PostgreSQL 18.6 databases. No hosted CI run or real-SMTP delivery was performed.

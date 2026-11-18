@@ -1,6 +1,7 @@
 from typing import Literal
+from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,6 +12,10 @@ class Settings(BaseSettings):
     APP_ENV: Literal["production", "staging", "local", "development", "test"] = (
         "production"
     )
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
     IDENTITY_REQUEST_LIMIT: int = Field(5, ge=1, le=100)
     IDENTITY_REQUEST_WINDOW_SECONDS: int = Field(600, ge=1, le=86400)
 
@@ -26,6 +31,28 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: SecretStr | None = None
     SMTP_FROM: str | None = None
     SMTP_USE_SSL: bool = False
+
+    @field_validator("CORS_ORIGINS")
+    @classmethod
+    def validate_cors_origins(cls, origins: list[str]) -> list[str]:
+        for origin in origins:
+            parts = urlsplit(origin)
+            if (
+                parts.scheme not in {"http", "https"}
+                or not parts.netloc
+                or parts.username is not None
+                or parts.password is not None
+                or parts.path
+                or parts.query
+                or parts.fragment
+                or "*" in origin
+            ):
+                raise ValueError("CORS origins must be explicit HTTP(S) origins.")
+            try:
+                _ = parts.port
+            except ValueError as exc:
+                raise ValueError("CORS origin has an invalid port.") from exc
+        return list(dict.fromkeys(origins))
 
     model_config = SettingsConfigDict(
         env_file=".env",
