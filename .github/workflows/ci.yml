@@ -34,6 +34,7 @@ jobs:
       APP_NAME: ResearchNest
       DATABASE_URL: sqlite://
       TEST_MIGRATION_DATABASE_URL: postgresql://researchnest:migration-test@127.0.0.1:5432/researchnest_migrations
+      TEST_IDENTITY_DATABASE_URL: postgresql://researchnest:migration-test@127.0.0.1:5432/researchnest_identity
       SECRET_KEY: test-secret-key
       DEBUG: "true"
       ALGORITHM: HS256
@@ -79,6 +80,11 @@ jobs:
           docker exec ${{ job.services.postgres.id }} psql -U researchnest
           -d researchnest_migrations -v ON_ERROR_STOP=1
           -c 'CREATE EXTENSION vector;'
+
+      - name: Create disposable identity test database
+        run: >-
+          docker exec ${{ job.services.postgres.id }} createdb -U researchnest
+          researchnest_identity
 
       - name: Run Tests with Coverage
         run: |

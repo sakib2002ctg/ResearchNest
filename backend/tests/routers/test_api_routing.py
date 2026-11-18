@@ -31,6 +31,7 @@ def test_users_me_returns_only_current_user(authenticated_client, test_user):
         "id": test_user.id,
         "username": test_user.username,
         "email": test_user.email,
+        "is_verified": False,
     }
 
 
@@ -48,11 +49,19 @@ def test_openapi_exposes_versioned_routes_and_hides_legacy_aliases(client):
         "/api/v1/auth/me",
         "/api/v1/auth/logout",
         "/api/v1/auth/logout-all",
+        "/api/v1/auth/verify-email/request",
+        "/api/v1/auth/verify-email/confirm",
+        "/api/v1/auth/password-reset/request",
+        "/api/v1/auth/password-reset/confirm",
+        "/api/v1/auth/password-change",
         "/api/v1/users/me",
         "/api/v1/users/me/profile",
         "/api/v1/users/me/preferences",
         "/api/v1/users/me/sessions",
         "/api/v1/users/me/activity",
+        "/api/v1/users/me/sessions/{session_id}",
+        "/api/v1/users/me/export",
+        "/api/v1/users/me/dashboard",
         "/api/v1/papers/",
         "/api/v1/papers/search",
         "/api/v1/papers/{paper_id}",

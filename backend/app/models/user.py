@@ -1,4 +1,4 @@
-from sqlalchemy import String
+from sqlalchemy import String, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.database import Base
@@ -28,6 +28,11 @@ class User(Base):
 
     hashed_password: Mapped[str] = mapped_column(
         String(255),
+        nullable=False,
+    )
+    is_verified: Mapped[bool] = mapped_column(
+        default=False,
+        server_default=false(),
         nullable=False,
     )
 

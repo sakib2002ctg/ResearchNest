@@ -20,8 +20,9 @@ def migration_config(url=None):
 def test_migration_chain_is_linear_and_generates_postgresql_ddl():
     config = migration_config("postgresql://localhost/offline")
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["8ad1e721e53b"]
+    assert script.get_heads() == ["b21c4b995d13"]
     assert [revision.revision for revision in script.walk_revisions()] == [
+        "b21c4b995d13",
         "8ad1e721e53b",
         "009360f02c17",
         "146022ae25cb",
@@ -84,6 +85,7 @@ def test_postgresql_migration_round_trip():
             "source",
             "url",
             "owner_id",
+            "created_at",
         }
         assert inspector.get_foreign_keys("research_papers")[0]["referred_table"] == (
             "users"
@@ -99,7 +101,7 @@ def test_postgresql_migration_round_trip():
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
-                == "8ad1e721e53b"
+                == "b21c4b995d13"
             )
             user_id = connection.execute(
                 text(
@@ -163,6 +165,18 @@ def test_postgresql_migration_round_trip():
                     text("SELECT title FROM research_papers WHERE owner_id = 42")
                 ).scalar_one()
                 == "Legacy paper"
+            )
+            assert (
+                connection.execute(
+                    text("SELECT is_verified FROM users WHERE id = 42")
+                ).scalar_one()
+                is False
+            )
+            assert (
+                connection.execute(
+                    text("SELECT created_at FROM research_papers WHERE owner_id = 42")
+                ).scalar_one()
+                is not None
             )
         command.downgrade(config, "009360f02c17")
         with engine.connect() as connection:

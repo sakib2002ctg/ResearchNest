@@ -1,3 +1,5 @@
+import hashlib
+import secrets
 from datetime import timedelta
 from uuid import uuid4
 
@@ -73,9 +75,7 @@ class UserService:
             expires_at=issued_at + lifetime,
         )
         upgraded_hash = (
-            hash_password(password)
-            if password_needs_rehash(user.hashed_password)
-            else None
+            hash_password(password) if password_needs_rehash(password_hash) else None
         )
         access_token = create_access_token(
             data={
@@ -86,7 +86,10 @@ class UserService:
             expires_delta=lifetime,
             issued_at=issued_at,
         )
-        self.repository.start_session(user, session, upgraded_hash)
+        if not self.repository.start_session(
+            user, session, upgraded_hash, expected_hash=password_hash
+        ):
+            raise ValueError("Invalid email or password.")
 
         return Token(
             access_token=access_token,
@@ -116,5 +119,102 @@ class UserService:
     def activity(self, user_id: int, limit: int):
         return self.repository.activity(user_id, limit)
 
+    def revoke_session_by_id(
+        self, user_id: int, session_id: str, ip_address: str | None
+    ) -> bool:
+        return self.repository.revoke_session_by_id(user_id, session_id, ip_address)
+
+    def export_user_data(self, user_id: int, ip_address: str | None):
+        return self.repository.export_user_data(user_id, ip_address)
+
+    def dashboard(self, user_id: int):
+        return self.repository.dashboard(user_id)
+
     def delete_account(self, user: User, ip_address: str | None):
         self.repository.delete_account(user, ip_address)
+
+    def issue_email_verification(
+        self, user_id: int, ip_address: str | None
+    ) -> str | None:
+        token = generate_verification_token()
+        issued = self.repository.issue_verification_token(
+            user_id=user_id,
+            token_hash=hash_verification_token(token),
+            purpose="email_verification",
+            expires_at=utc_now() + timedelta(hours=24),
+            ip_address=ip_address,
+        )
+        return token if issued else None
+
+    def request_password_reset(self, email: str, ip_address: str | None) -> str | None:
+        user = self.repository.get_by_email(email)
+        if user is None:
+            return None
+        token = generate_verification_token()
+        issued = self.repository.issue_verification_token(
+            user_id=user.id,
+            token_hash=hash_verification_token(token),
+            purpose="password_reset",
+            expires_at=utc_now() + timedelta(minutes=20),
+            ip_address=ip_address,
+        )
+        return token if issued else None
+
+    def confirm_email_verification(self, token: str, ip_address: str | None) -> None:
+        claimed = self.repository.claim_verification_token(
+            hash_verification_token(token), "email_verification"
+        )
+        if claimed is None:
+            raise ValueError("Invalid or expired verification token.")
+        self.repository.finish_email_verification(claimed, ip_address)
+
+    def confirm_password_reset(
+        self, token: str, new_password: str, ip_address: str | None
+    ) -> None:
+        claimed = self.repository.claim_verification_token(
+            hash_verification_token(token), "password_reset"
+        )
+        if claimed is None:
+            raise ValueError("Invalid or expired password reset token.")
+        self.repository.replace_password(
+            claimed,
+            hash_password(new_password),
+            "auth.password_reset.completed",
+            ip_address,
+        )
+
+    def change_password(
+        self,
+        user: User,
+        session: Session,
+        current_password: str,
+        new_password: str,
+        ip_address: str | None,
+    ) -> None:
+        expected_hash = user.hashed_password
+        if not verify_password(current_password, expected_hash):
+            raise ValueError("Current password is incorrect.")
+        new_hash = hash_password(new_password)
+        locked = self.repository.lock_user(user.id)
+        if locked is None or locked.hashed_password != expected_hash:
+            raise ValueError("Current password is incorrect.")
+        if (
+            self.repository.get_active_session(user.id, session.token_jti, session.id)
+            is None
+        ):
+            raise ValueError("Session is no longer active.")
+        self.repository.replace_password(
+            locked,
+            new_hash,
+            "auth.password_change",
+            ip_address,
+            keep_session_id=session.id,
+        )
+
+
+def generate_verification_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def hash_verification_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 
 from app.dependencies.current_user import get_current_user
 from app.dependencies.request_context import client_ip
@@ -7,6 +7,8 @@ from app.models.user import User
 from app.schemas.user import UserResponse
 from app.schemas.user_settings import (
     AuditLogResponse,
+    DashboardResponse,
+    DataExport,
     PreferenceResponse,
     PreferenceUpdate,
     ProfileResponse,
@@ -94,3 +96,37 @@ def delete_account(
     service: UserService = Depends(get_user_service),
 ):
     service.delete_account(current_user, client_ip(request))
+
+
+@router.delete("/me/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_session(
+    session_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    service: UserService = Depends(get_user_service),
+):
+    if not service.revoke_session_by_id(
+        current_user.id, session_id, client_ip(request)
+    ):
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+
+@router.get("/me/export", response_model=DataExport)
+def export_user_data(
+    request: Request,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    service: UserService = Depends(get_user_service),
+):
+    response.headers["Cache-Control"] = "no-store"
+    return service.export_user_data(current_user.id, client_ip(request))
+
+
+@router.get("/me/dashboard", response_model=DashboardResponse)
+def dashboard(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    service: UserService = Depends(get_user_service),
+):
+    response.headers["Cache-Control"] = "no-store"
+    return service.dashboard(current_user.id)
