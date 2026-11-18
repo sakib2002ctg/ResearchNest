@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: SecretStr | None = None
     SMTP_FROM: str | None = None
     SMTP_USE_SSL: bool = False
+    REDIS_URL: str | None = Field(None, repr=False)
+    OPENALEX_API_KEY: SecretStr | None = None
+    SEMANTIC_SCHOLAR_API_KEY: SecretStr | None = None
+    PUBMED_TOOL_EMAIL: str | None = None
+    PUBMED_API_KEY: SecretStr | None = None
 
     @field_validator("CORS_ORIGINS")
     @classmethod

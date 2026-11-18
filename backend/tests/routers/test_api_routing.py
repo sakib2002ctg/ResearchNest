@@ -66,6 +66,9 @@ def test_openapi_exposes_versioned_routes_and_hides_legacy_aliases(client):
         "/api/v1/papers/search",
         "/api/v1/papers/{paper_id}",
         "/api/v1/research/search",
+        "/api/v1/discovery/search",
+        "/api/v1/discovery/doi/{doi}",
+        "/api/v1/discovery/save-to-library",
     }
     oauth_flow = schema["components"]["securitySchemes"]["OAuth2PasswordBearer"][
         "flows"
@@ -75,3 +78,6 @@ def test_openapi_exposes_versioned_routes_and_hides_legacy_aliases(client):
         if path.startswith("/api/v1/papers"):
             for operation in operations.values():
                 assert operation["security"] == [{"OAuth2PasswordBearer": []}]
+    assert schema["paths"]["/api/v1/discovery/save-to-library"]["post"]["security"] == [
+        {"OAuth2PasswordBearer": []}
+    ]

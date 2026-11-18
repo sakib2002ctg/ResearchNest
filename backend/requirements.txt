@@ -99,3 +99,6 @@ black==26.5.1
 pre-commit==4.3.0
 
 pytest-cov
+redis==6.4.0
+asyncpg==0.31.0
+aiosqlite==0.22.1

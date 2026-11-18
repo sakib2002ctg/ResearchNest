@@ -51,3 +51,9 @@ class User(Base):
     verification_tokens = relationship(
         "VerificationToken", cascade="all, delete-orphan", passive_deletes=True
     )
+    saved_papers = relationship(
+        "UserPaper",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )

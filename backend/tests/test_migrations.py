@@ -20,8 +20,9 @@ def migration_config(url=None):
 def test_migration_chain_is_linear_and_generates_postgresql_ddl():
     config = migration_config("postgresql://localhost/offline")
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["b21c4b995d13"]
+    assert script.get_heads() == ["c83a2f1a4d71"]
     assert [revision.revision for revision in script.walk_revisions()] == [
+        "c83a2f1a4d71",
         "b21c4b995d13",
         "8ad1e721e53b",
         "009360f02c17",
@@ -38,6 +39,10 @@ def test_migration_chain_is_linear_and_generates_postgresql_ddl():
         < upgrade_sql.index("ALTER TABLE research_papers ADD COLUMN owner_id")
     )
     assert "FOREIGN KEY(owner_id) REFERENCES users (id)" in upgrade_sql
+    assert (
+        "FOREIGN KEY(legacy_paper_id) REFERENCES research_papers (id) ON DELETE CASCADE"
+        in upgrade_sql
+    )
 
     config.output_buffer = io.StringIO()
     command.downgrade(config, "head:base", sql=True)
@@ -74,6 +79,23 @@ def test_postgresql_migration_round_trip():
             "user_sessions",
             "verification_tokens",
             "audit_logs",
+            "papers",
+            "authors",
+            "paper_authors",
+            "paper_sources",
+            "user_papers",
+        }
+        assert {
+            (
+                tuple(fk["constrained_columns"]),
+                fk["referred_table"],
+                fk["options"].get("ondelete"),
+            )
+            for fk in inspector.get_foreign_keys("user_papers")
+        } == {
+            (("user_id",), "users", "CASCADE"),
+            (("paper_id",), "papers", "CASCADE"),
+            (("legacy_paper_id",), "research_papers", "CASCADE"),
         }
         assert {
             column["name"] for column in inspector.get_columns("research_papers")
@@ -101,7 +123,7 @@ def test_postgresql_migration_round_trip():
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
-                == "b21c4b995d13"
+                == "c83a2f1a4d71"
             )
             user_id = connection.execute(
                 text(

@@ -92,6 +92,75 @@ export interface ResearchSearch {
   total: number;
 }
 
+export type DiscoverySource =
+  | "arxiv"
+  | "openalex"
+  | "crossref"
+  | "semantic_scholar"
+  | "pubmed";
+export type DiscoverySources = DiscoverySource[];
+export type DiscoverySort = "relevance" | "date";
+export type Sort = DiscoverySort;
+export type PublicationType =
+  | "article"
+  | "review"
+  | "preprint"
+  | "book"
+  | "book_chapter"
+  | "conference"
+  | "other";
+
+export interface CitationLink {
+  title: string;
+  doi: string | null;
+  url: string | null;
+  source: DiscoverySource;
+}
+
+export interface DiscoveryPaper {
+  title: string;
+  authors: string[];
+  abstract: string | null;
+  doi: string | null;
+  publication_date: string | null;
+  url: string | null;
+  source: DiscoverySource;
+  sources: DiscoverySource[];
+  external_id: string | null;
+  paper_type: string | null;
+  citation_count: number | null;
+  citation_links: CitationLink[];
+}
+
+export interface DiscoverySearchRequest {
+  q: string;
+  sources: DiscoverySource[];
+  year_from?: number;
+  year_to?: number;
+  publication_type?: PublicationType;
+  sort: DiscoverySort;
+  limit: number;
+  offset: number;
+}
+
+export interface DiscoveryResponse {
+  items: DiscoveryPaper[];
+  total: number;
+  offset: number;
+  limit: number;
+  sources: DiscoverySource[];
+  warnings: string[];
+}
+
+export type DiscoveryPaperReference = Pick<DiscoveryPaper, "source" | "external_id" | "doi">;
+
+export interface SaveToLibraryResult {
+  paper_id: number;
+  user_paper_id: number;
+  saved: boolean;
+  already_saved: boolean;
+}
+
 export interface Dashboard {
   user: User;
   profile: Profile;
@@ -356,5 +425,20 @@ export const api = {
   searchResearch: (query: string, limit = 10) =>
     request<ResearchSearch>(`/research/search?${searchParams({ q: query, limit })}`, {
       authenticated: false,
+    }),
+  searchDiscovery: (values: DiscoverySearchRequest) =>
+    request<DiscoveryResponse>("/discovery/search", {
+      method: "POST",
+      body: values,
+      authenticated: false,
+    }),
+  getDiscoveryDOI: (doi: string) =>
+    request<DiscoveryPaper>(`/discovery/doi/${encodeURIComponent(doi.trim())}`, {
+      authenticated: false,
+    }),
+  saveDiscoveryPaper: ({ source, external_id, doi }: DiscoveryPaperReference) =>
+    request<SaveToLibraryResult>("/discovery/save-to-library", {
+      method: "POST",
+      body: { source, external_id, doi },
     }),
 };
