@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,7 +9,9 @@ class Settings(BaseSettings):
 
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(30, gt=0)
+    JWT_ISSUER: str = "researchnest-api"
+    JWT_AUDIENCE: str = "researchnest-client"
 
     model_config = SettingsConfigDict(
         env_file=".env",

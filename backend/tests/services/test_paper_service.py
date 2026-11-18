@@ -78,6 +78,7 @@ def test_get_all_papers(service, repository, paper_list):
     repository.count_papers.return_value = 2
 
     result = service.get_all_papers(
+        owner_id=1,
         page=1,
         size=10,
     )
@@ -94,6 +95,7 @@ def test_get_all_papers_empty(service, repository):
     repository.count_papers.return_value = 0
 
     result = service.get_all_papers(
+        owner_id=1,
         page=1,
         size=10,
     )
@@ -108,6 +110,7 @@ def test_search_papers(service, repository, paper_list):
     repository.count_search_results.return_value = 1
 
     result = service.search_papers(
+        owner_id=1,
         query="Transformer",
         page=1,
         size=10,
@@ -123,6 +126,7 @@ def test_search_papers_empty(service, repository):
     repository.count_search_results.return_value = 0
 
     result = service.search_papers(
+        owner_id=1,
         query="Nothing",
         page=1,
         size=10,
@@ -136,16 +140,17 @@ def test_search_papers_empty(service, repository):
 def test_get_paper_by_id(service, repository, sample_paper):
     repository.get_paper_by_id.return_value = sample_paper
 
-    result = service.get_paper_by_id(1)
+    result = service.get_paper_by_id(1, owner_id=1)
 
     assert result == sample_paper
+    repository.get_paper_by_id.assert_called_once_with(1, owner_id=1)
 
 
 def test_get_paper_by_id_not_found(service, repository):
     repository.get_paper_by_id.return_value = None
 
     with pytest.raises(PaperNotFoundException):
-        service.get_paper_by_id(999)
+        service.get_paper_by_id(999, owner_id=1)
 
 
 def test_verify_paper_owner_success(service, sample_paper):
@@ -196,10 +201,13 @@ def test_get_all_papers_multiple_pages(
     repository.count_papers.return_value = 25
 
     result = service.get_all_papers(
+        owner_id=1,
         page=2,
         size=10,
     )
 
+    repository.get_all_papers.assert_called_once_with(owner_id=1, skip=10, limit=10)
+    repository.count_papers.assert_called_once_with(owner_id=1)
     assert result.page == 2
     assert result.total == 25
     assert result.pages == 3
@@ -215,11 +223,16 @@ def test_search_multiple_pages(
     repository.count_search_results.return_value = 21
 
     result = service.search_papers(
+        owner_id=1,
         query="AI",
         page=2,
         size=10,
     )
 
+    repository.search_papers.assert_called_once_with(
+        query="AI", owner_id=1, skip=10, limit=10
+    )
+    repository.count_search_results.assert_called_once_with("AI", owner_id=1)
     assert result.page == 2
     assert result.total == 21
     assert result.pages == 3

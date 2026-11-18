@@ -36,3 +36,13 @@ class User(Base):
         back_populates="owner",
         cascade="all, delete-orphan",
     )
+    profile = relationship("Profile", uselist=False, cascade="all, delete-orphan")
+    preferences = relationship(
+        "UserPreference", uselist=False, cascade="all, delete-orphan"
+    )
+    sessions = relationship(
+        "Session", cascade="all, delete-orphan", passive_deletes=True
+    )
+    verification_tokens = relationship(
+        "VerificationToken", cascade="all, delete-orphan", passive_deletes=True
+    )

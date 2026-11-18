@@ -1,7 +1,6 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from pydantic import BaseModel
 from sqlalchemy import text
 
 from app.core.logging import logger
@@ -44,16 +43,13 @@ app.add_middleware(LoggingMiddleware)
 # Register global exception handlers
 register_exception_handlers(app)
 
-# Routers
-app.include_router(research_router)
-app.include_router(papers_router)
-app.include_router(users_router)
-app.include_router(auth_router)
+# Versioned product API.
+for router in (research_router, papers_router, users_router, auth_router):
+    app.include_router(router, prefix="/api/v1")
 
-
-class Student(BaseModel):
-    name: str
-    age: int
+# Temporary compatibility aliases use the same dependencies and authorization.
+for router in (research_router, papers_router, auth_router):
+    app.include_router(router, include_in_schema=False)
 
 
 @app.get("/")
@@ -69,18 +65,3 @@ def health():
 @app.get("/about")
 def about():
     return {"project": "ResearchNest", "version": "1.0"}
-
-
-@app.get("/greet/{name}")
-def greet(name: str):
-    return {"message": f"Hello {name}"}
-
-
-@app.get("/add")
-def add(a: int, b: int):
-    return {"result": a + b}
-
-
-@app.post("/student")
-def create_student(student: Student):
-    return {"message": "Student created successfully!", "student": student}
