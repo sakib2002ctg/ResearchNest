@@ -2,9 +2,12 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     JSON,
+    CheckConstraint,
     Date,
     DateTime,
+    Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
@@ -113,6 +116,21 @@ class UserPaper(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "paper_id", name="uq_user_papers_user_paper"),
         UniqueConstraint("legacy_paper_id", name="uq_user_papers_legacy_paper"),
+        UniqueConstraint("user_id", "id", name="uq_user_papers_user_id_id"),
+        ForeignKeyConstraint(
+            ("user_id", "legacy_paper_id"),
+            ("research_papers.owner_id", "research_papers.id"),
+            name="fk_user_papers_legacy_owner",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint(
+            "reading_status IN ('unread', 'reading', 'completed')",
+            name="ck_user_papers_reading_status",
+        ),
+        CheckConstraint(
+            "reading_progress_percent BETWEEN 0 AND 100",
+            name="ck_user_papers_reading_progress_percent",
+        ),
         Index("ix_user_papers_user_saved", "user_id", "saved_at"),
     )
 
@@ -120,15 +138,15 @@ class UserPaper(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
-    paper_id: Mapped[int] = mapped_column(
+    paper_id: Mapped[int | None] = mapped_column(
         ForeignKey("papers.id", ondelete="CASCADE"), index=True
     )
-    legacy_paper_id: Mapped[int] = mapped_column(
-        ForeignKey("research_papers.id", ondelete="CASCADE")
-    )
+    legacy_paper_id: Mapped[int]
     saved_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     note: Mapped[str | None] = mapped_column(Text)
+    reading_status: Mapped[str] = mapped_column(String(20), server_default="unread")
+    reading_progress_percent: Mapped[float] = mapped_column(Float, server_default="0.0")
     paper = relationship("Paper", back_populates="user_papers")
     user = relationship("User", back_populates="saved_papers")

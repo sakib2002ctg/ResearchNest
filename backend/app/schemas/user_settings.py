@@ -94,11 +94,61 @@ class SavedPaperResponse(ResearchPaperResponse):
     created_at: datetime
 
 
+class CollectionExport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    description: str | None
+    created_at: datetime
+
+
+class TagExport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    color: str | None
+
+
+class AnnotationExport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    user_paper_id: int
+    type: Literal["note", "highlight"]
+    content: str
+    page_number: int | None
+    color: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class DocumentExport(BaseModel):
+    id: int
+    user_paper_id: int
+    original_filename: str
+    size_bytes: int
+    page_count: int
+    created_at: datetime
+
+
+class LibraryItemExport(BaseModel):
+    user_paper_id: int
+    legacy_paper_id: int
+    reading_status: Literal["unread", "reading", "completed"]
+    reading_progress_percent: float
+    collection_ids: list[int]
+    tag_ids: list[int]
+    annotations: list[AnnotationExport]
+    document: DocumentExport | None
+
+
 class DataExport(BaseModel):
     account: UserResponse
     profile: ProfileResponse
     preferences: PreferenceResponse
     papers: list[SavedPaperResponse]
+    collections: list[CollectionExport]
+    tags: list[TagExport]
+    library_items: list[LibraryItemExport]
     active_sessions: list[SessionResponse]
     audit_logs: list[AuditLogExport]
 

@@ -79,6 +79,71 @@ export interface PaginatedPapers {
   pages: number;
 }
 
+export type ReadingStatus = "unread" | "reading" | "completed";
+
+export interface ReadingProgress {
+  reading_status: ReadingStatus;
+  reading_progress_percent: number;
+}
+
+export interface LibraryDocument {
+  id: number;
+  original_filename: string;
+  size_bytes: number;
+  page_count: number;
+}
+
+export interface LibraryPaper extends ReadingProgress {
+  id: number;
+  legacy_paper_id: number;
+  title: string;
+  authors: string | null;
+  abstract: string | null;
+  source: string | null;
+  url: string | null;
+  saved_at: string;
+  collection_ids: number[];
+  tag_ids: number[];
+  document: LibraryDocument | null;
+}
+
+export interface LibraryPage extends Omit<PaginatedPapers, "items"> {
+  items: LibraryPaper[];
+}
+
+export interface LibraryCollectionInput {
+  name: string;
+  description: string | null;
+}
+
+export interface LibraryCollection extends LibraryCollectionInput {
+  id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LibraryTagInput {
+  name: string;
+  color: string | null;
+}
+
+export interface LibraryTag extends LibraryTagInput {
+  id: number;
+}
+
+export interface LibraryAnnotationInput {
+  type: "note" | "highlight";
+  content: string;
+  page_number: number | null;
+  color: string | null;
+}
+
+export interface LibraryAnnotation extends LibraryAnnotationInput {
+  id: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ExternalPaper {
   title: string;
   authors: string[];
@@ -174,11 +239,58 @@ export interface Dashboard {
   recent_activity: AuditEvent[];
 }
 
+export interface ExportCollection {
+  id: number;
+  name: string;
+  description: string | null;
+  created_at: string;
+}
+
+export interface ExportTag {
+  id: number;
+  name: string;
+  color: string | null;
+}
+
+export interface ExportAnnotation {
+  id: number;
+  user_paper_id: number;
+  type: "note" | "highlight";
+  content: string;
+  page_number: number | null;
+  color: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExportDocument {
+  id: number;
+  user_paper_id: number;
+  original_filename: string;
+  size_bytes: number;
+  page_count: number;
+  created_at: string;
+}
+
+export interface ExportLibraryItem {
+  user_paper_id: number;
+  legacy_paper_id: number;
+  reading_status: "unread" | "reading" | "completed";
+  reading_progress_percent: number;
+  collection_ids: number[];
+  tag_ids: number[];
+  annotations: ExportAnnotation[];
+  document: ExportDocument | null;
+}
+
 export interface DataExport {
   account: User;
   profile: Profile;
   preferences: Preferences;
   papers: SavedPaper[];
+  collections: ExportCollection[];
+  tags: ExportTag[];
+  library_items: ExportLibraryItem[];
   active_sessions: SessionInfo[];
   audit_logs: Array<AuditEvent & { user_id: number; ip_address: string | null }>;
 }
@@ -300,9 +412,11 @@ function errorMessage(payload: unknown, status: number): string {
 }
 
 type RequestOptions = {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   authenticated?: boolean;
+  responseType?: "pdf";
+  signal?: AbortSignal;
 };
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -316,8 +430,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
   const controller = new AbortController();
   const timeout = globalThis.setTimeout(() => controller.abort(), 25_000);
-  const requestHeaders: Record<string, string> = { Accept: "application/json" };
-  if (options.body !== undefined) requestHeaders["Content-Type"] = "application/json";
+  const multipart = typeof FormData !== "undefined" && options.body instanceof FormData;
+  const requestHeaders: Record<string, string> = {
+    Accept: options.responseType === "pdf" ? "application/pdf" : "application/json",
+  };
+  if (options.body !== undefined && !multipart) requestHeaders["Content-Type"] = "application/json";
   if (authenticated && requestToken) {
     requestHeaders.Authorization = `Bearer ${requestToken}`;
   }
@@ -326,14 +443,22 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     const response = await fetch(`${API_BASE_URL}${path}`, {
       method: options.method ?? "GET",
       headers: requestHeaders,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      body: multipart ? (options.body as FormData) : JSON.stringify(options.body),
       cache: "no-store",
       credentials: "omit",
-      signal: controller.signal,
+      signal: options.signal
+        ? AbortSignal.any([controller.signal, options.signal])
+        : controller.signal,
       referrerPolicy: "no-referrer",
       redirect: "error",
     });
     if (response.status === 204) return undefined as T;
+    if (response.ok && options.responseType === "pdf") {
+      if (response.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase() !== "application/pdf") {
+        throw new ApiError("The service returned an invalid PDF response.", 502);
+      }
+      return (await response.blob()) as T;
+    }
     let payload: unknown = null;
     try {
       payload = await response.json();
@@ -362,9 +487,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 }
 
-function searchParams(values: Record<string, string | number>): string {
+function searchParams(values: Record<string, string | number | undefined>): string {
   const params = new URLSearchParams();
-  Object.entries(values).forEach(([key, value]) => params.set(key, String(value)));
+  Object.entries(values).forEach(([key, value]) => {
+    if (value !== undefined) params.set(key, String(value));
+  });
   return params.toString();
 }
 
@@ -422,6 +549,47 @@ export const api = {
   updatePaper: (id: number, values: Partial<PaperInput>) =>
     request<Paper>(`/papers/${id}`, { method: "PUT", body: values }),
   deletePaper: (id: number) => request<StatusMessage>(`/papers/${id}`, { method: "DELETE" }),
+  getLibrary: (params: { q?: string; collection_id?: number; tag_id?: number; page: number; size: number }) =>
+    request<LibraryPage>(`/library/papers?${searchParams(params)}`),
+  setReadingProgress: (paperId: number, body: ReadingProgress) =>
+    request<ReadingProgress & { id: number }>(`/library/papers/${paperId}/progress`, { method: "PATCH", body }),
+  getLibraryCollections: () => request<LibraryCollection[]>("/library/collections"),
+  getLibraryCollection: (id: number) => request<LibraryCollection>(`/library/collections/${id}`),
+  createLibraryCollection: (body: LibraryCollectionInput) =>
+    request<LibraryCollection>("/library/collections", { method: "POST", body }),
+  updateLibraryCollection: (id: number, body: LibraryCollectionInput) =>
+    request<LibraryCollection>(`/library/collections/${id}`, { method: "PATCH", body }),
+  deleteLibraryCollection: (id: number) =>
+    request<void>(`/library/collections/${id}`, { method: "DELETE" }),
+  getLibraryTags: () => request<LibraryTag[]>("/library/tags"),
+  getLibraryTag: (id: number) => request<LibraryTag>(`/library/tags/${id}`),
+  createLibraryTag: (body: LibraryTagInput) =>
+    request<LibraryTag>("/library/tags", { method: "POST", body }),
+  updateLibraryTag: (id: number, body: LibraryTagInput) =>
+    request<LibraryTag>(`/library/tags/${id}`, { method: "PATCH", body }),
+  deleteLibraryTag: (id: number) =>
+    request<void>(`/library/tags/${id}`, { method: "DELETE" }),
+  setLibraryMembership: (group: "collections" | "tags", groupId: number, paperId: number, include: boolean) =>
+    request<void>(`/library/${group}/${groupId}/papers/${paperId}`, { method: include ? "PUT" : "DELETE" }),
+  getLibraryAnnotations: (paperId: number, signal?: AbortSignal) =>
+    request<LibraryAnnotation[]>(`/library/papers/${paperId}/annotations`, { signal }),
+  createLibraryAnnotation: (paperId: number, body: LibraryAnnotationInput) =>
+    request<LibraryAnnotation>(`/library/papers/${paperId}/annotations`, { method: "POST", body }),
+  updateLibraryAnnotation: (paperId: number, id: number, body: LibraryAnnotationInput) =>
+    request<LibraryAnnotation>(`/library/papers/${paperId}/annotations/${id}`, { method: "PATCH", body }),
+  deleteLibraryAnnotation: (paperId: number, id: number) =>
+    request<void>(`/library/papers/${paperId}/annotations/${id}`, { method: "DELETE" }),
+  uploadLibraryPDF: (file: File, title?: string, userPaperId?: number) => {
+    const body = new FormData();
+    body.set("file", file);
+    if (title) body.set("title", title);
+    if (userPaperId !== undefined) body.set("user_paper_id", String(userPaperId));
+    return request<LibraryDocument & { user_paper_id: number }>("/library/upload", { method: "POST", body });
+  },
+  getLibraryPDF: (paperId: number, signal?: AbortSignal) =>
+    request<Blob>(`/library/papers/${paperId}/pdf`, { responseType: "pdf", signal }),
+  deleteLibraryPDF: (paperId: number) =>
+    request<void>(`/library/papers/${paperId}/pdf`, { method: "DELETE" }),
   searchResearch: (query: string, limit = 10) =>
     request<ResearchSearch>(`/research/search?${searchParams({ q: query, limit })}`, {
       authenticated: false,

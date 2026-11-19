@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -36,6 +37,10 @@ class Settings(BaseSettings):
     SEMANTIC_SCHOLAR_API_KEY: SecretStr | None = None
     PUBMED_TOOL_EMAIL: str | None = None
     PUBMED_API_KEY: SecretStr | None = None
+    PDF_STORAGE_ROOT: Path = Path("storage/pdfs")
+    CLAMAV_HOST: str | None = None
+    CLAMAV_PORT: int = Field(3310, ge=1, le=65535)
+    CLAMAV_TIMEOUT_SECONDS: float = Field(10.0, gt=0, le=60)
 
     @field_validator("CORS_ORIGINS")
     @classmethod

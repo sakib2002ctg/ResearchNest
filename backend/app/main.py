@@ -1,4 +1,5 @@
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,6 +23,8 @@ from app.modules.discovery.providers import (
     SemanticScholarProvider,
 )
 from app.modules.discovery.router import router as discovery_router
+from app.modules.library.cleanup import run_pdf_cleanup
+from app.modules.library.router import router as library_router
 from app.routers.auth import router as auth_router
 from app.routers.papers import router as papers_router
 from app.routers.research import router as research_router
@@ -85,9 +88,18 @@ async def lifespan(app: FastAPI):
         cache=SearchCache(redis),
     )
     app.state.discovery_gateway = gateway
+    cleanup_task = (
+        asyncio.create_task(run_pdf_cleanup(app.state.discovery_session_factory))
+        if settings.APP_ENV != "test"
+        else None
+    )
     try:
         yield
     finally:
+        if cleanup_task:
+            cleanup_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await cleanup_task
         try:
             await gateway.close()
         finally:
@@ -127,6 +139,7 @@ for router in (
     users_router,
     auth_router,
     discovery_router,
+    library_router,
 ):
     app.include_router(router, prefix="/api/v1")
 

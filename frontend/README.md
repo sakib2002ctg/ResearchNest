@@ -4,7 +4,7 @@
 
 1. Copy `.env.example` to `.env.local`. Set `NEXT_PUBLIC_API_BASE_URL` to the backend origin and `/api/v1` path.
 2. Allow that browser origin in backend `CORS_ORIGINS`; the backend defaults include `http://localhost:3000` and `http://127.0.0.1:3000`.
-3. Install the locked Node dependencies with `npm ci`.
+3. Use Node.js 22.13 or newer in the 22.x line, or Node.js 24 or newer, and install the locked dependencies with `npm ci`.
 4. Run `npm run dev`, then open `http://localhost:3000`.
 
 The app uses Next.js App Router, strict TypeScript, Tailwind CSS, and English/Bangla copy. Check with `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build`.

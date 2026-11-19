@@ -1,7 +1,10 @@
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.models.paper import UserPaper
 from app.models.research_paper import ResearchPaper
+from app.models.user import User
+from app.modules.library.cleanup import queue_owned_pdfs
 from app.schemas.research_paper import (
     ResearchPaperCreate,
     ResearchPaperUpdate,
@@ -23,6 +26,14 @@ class PaperRepository:
         )
 
         self.db.add(db_paper)
+        self.db.flush()
+        self.db.add(
+            UserPaper(
+                user_id=owner_id,
+                legacy_paper_id=db_paper.id,
+                saved_at=db_paper.created_at,
+            )
+        )
         self.db.commit()
         self.db.refresh(db_paper)
 
@@ -127,5 +138,8 @@ class PaperRepository:
         self,
         db_paper: ResearchPaper,
     ) -> None:
+        owner_id = db_paper.owner_id
+        self.db.scalar(select(User.id).where(User.id == owner_id).with_for_update())
+        queue_owned_pdfs(self.db, owner_id, db_paper.id)
         self.db.delete(db_paper)
         self.db.commit()

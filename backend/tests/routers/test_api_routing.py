@@ -69,13 +69,25 @@ def test_openapi_exposes_versioned_routes_and_hides_legacy_aliases(client):
         "/api/v1/discovery/search",
         "/api/v1/discovery/doi/{doi}",
         "/api/v1/discovery/save-to-library",
+        "/api/v1/library/papers",
+        "/api/v1/library/papers/{paper_id}/progress",
+        "/api/v1/library/papers/{paper_id}/annotations",
+        "/api/v1/library/papers/{paper_id}/annotations/{annotation_id}",
+        "/api/v1/library/papers/{paper_id}/pdf",
+        "/api/v1/library/upload",
+        "/api/v1/library/collections",
+        "/api/v1/library/collections/{collection_id}",
+        "/api/v1/library/collections/{collection_id}/papers/{paper_id}",
+        "/api/v1/library/tags",
+        "/api/v1/library/tags/{tag_id}",
+        "/api/v1/library/tags/{tag_id}/papers/{paper_id}",
     }
     oauth_flow = schema["components"]["securitySchemes"]["OAuth2PasswordBearer"][
         "flows"
     ]
     assert oauth_flow["password"]["tokenUrl"] == "/api/v1/auth/login"
     for path, operations in schema["paths"].items():
-        if path.startswith("/api/v1/papers"):
+        if path.startswith(("/api/v1/papers", "/api/v1/library")):
             for operation in operations.values():
                 assert operation["security"] == [{"OAuth2PasswordBearer": []}]
     assert schema["paths"]["/api/v1/discovery/save-to-library"]["post"]["security"] == [

@@ -6,12 +6,22 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.time import utc_now
 from app.models.audit_log import AuditLog
+from app.models.library import (
+    Annotation,
+    Collection,
+    CollectionPaper,
+    Document,
+    PaperTag,
+    Tag,
+)
+from app.models.paper import UserPaper
 from app.models.profile import Profile
 from app.models.research_paper import ResearchPaper
 from app.models.session import Session as UserSession
 from app.models.user import User
 from app.models.user_preference import UserPreference
 from app.models.verification_token import VerificationToken
+from app.modules.library.cleanup import queue_owned_pdfs
 from app.repositories.audit_repository import add_audit
 
 
@@ -184,6 +194,7 @@ class UserRepository:
             resource_id=str(user.id),
         )
         self.db.flush()
+        queue_owned_pdfs(self.db, user.id)
         self.db.delete(user)
         self.db.commit()
 
@@ -349,11 +360,95 @@ class UserRepository:
             .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
             .all()
         )
+        library_items = (
+            self.db.query(UserPaper)
+            .filter(UserPaper.user_id == user_id)
+            .order_by(UserPaper.saved_at, UserPaper.id)
+            .all()
+        )
+        library_ids = [item.id for item in library_items]
+        collection_ids: dict[int, list[int]] = {}
+        tag_ids: dict[int, list[int]] = {}
+        annotations: dict[int, list[Annotation]] = {}
+        documents: dict[int, Document] = {}
+        if library_ids:
+            for paper_id, collection_id in (
+                self.db.query(
+                    CollectionPaper.user_paper_id, CollectionPaper.collection_id
+                )
+                .filter(
+                    CollectionPaper.user_id == user_id,
+                    CollectionPaper.user_paper_id.in_(library_ids),
+                )
+                .all()
+            ):
+                collection_ids.setdefault(paper_id, []).append(collection_id)
+            for paper_id, tag_id in (
+                self.db.query(PaperTag.user_paper_id, PaperTag.tag_id)
+                .filter(
+                    PaperTag.user_id == user_id, PaperTag.user_paper_id.in_(library_ids)
+                )
+                .all()
+            ):
+                tag_ids.setdefault(paper_id, []).append(tag_id)
+            for annotation in (
+                self.db.query(Annotation)
+                .filter(
+                    Annotation.user_id == user_id,
+                    Annotation.user_paper_id.in_(library_ids),
+                )
+                .order_by(Annotation.created_at, Annotation.id)
+                .all()
+            ):
+                annotations.setdefault(annotation.user_paper_id, []).append(annotation)
+            documents = {
+                document.user_paper_id: document
+                for document in self.db.query(Document)
+                .filter(
+                    Document.user_id == user_id,
+                    Document.user_paper_id.in_(library_ids),
+                )
+                .all()
+            }
+        collections = (
+            self.db.query(Collection)
+            .filter(Collection.user_id == user_id)
+            .order_by(Collection.id)
+            .all()
+        )
+        tags = self.db.query(Tag).filter(Tag.user_id == user_id).order_by(Tag.id).all()
+        library_export = [
+            {
+                "user_paper_id": item.id,
+                "legacy_paper_id": item.legacy_paper_id,
+                "reading_status": item.reading_status,
+                "reading_progress_percent": item.reading_progress_percent,
+                "collection_ids": collection_ids.get(item.id, []),
+                "tag_ids": tag_ids.get(item.id, []),
+                "annotations": annotations.get(item.id, []),
+                "document": (
+                    {
+                        "id": documents[item.id].id,
+                        "user_paper_id": item.id,
+                        "original_filename": documents[item.id].original_filename,
+                        "size_bytes": documents[item.id].size_bytes,
+                        "page_count": documents[item.id].page_count,
+                        "created_at": documents[item.id].created_at,
+                    }
+                    if item.id in documents
+                    else None
+                ),
+            }
+            for item in library_items
+        ]
         return {
             "account": user,
             "profile": profile,
             "preferences": preferences,
             "papers": papers,
+            "collections": collections,
+            "tags": tags,
+            "library_items": library_export,
             "active_sessions": sessions,
             "audit_logs": audit_logs,
         }

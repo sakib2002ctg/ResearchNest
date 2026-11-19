@@ -8,6 +8,15 @@ from app.core.config import settings
 from app.core.security import decode_access_token, verify_password
 from app.core.time import utc_now
 from app.models import AuditLog, Session, User, VerificationToken
+from app.models.library import (
+    Annotation,
+    Collection,
+    CollectionPaper,
+    Document,
+    PaperTag,
+    Tag,
+)
+from app.models.paper import UserPaper
 from app.repositories.paper_repository import PaperRepository
 from app.schemas.research_paper import ResearchPaperCreate
 
@@ -257,12 +266,97 @@ def test_export_is_allowlisted_and_contains_only_callers_data(
     foreign = PaperRepository(db).create_paper(
         ResearchPaperCreate(title="Private export B"), owner_id=another_user.id
     )
+    own_link = (
+        db.query(UserPaper)
+        .filter_by(user_id=test_user.id, legacy_paper_id=own.id)
+        .one()
+    )
+    foreign_link = (
+        db.query(UserPaper)
+        .filter_by(user_id=another_user.id, legacy_paper_id=foreign.id)
+        .one()
+    )
+    own_collection = Collection(user_id=test_user.id, name="Private collection")
+    foreign_collection = Collection(user_id=another_user.id, name="Foreign collection")
+    own_tag = Tag(user_id=test_user.id, name="Private tag", color="#168049")
+    foreign_tag = Tag(user_id=another_user.id, name="Foreign tag")
+    db.add_all([own_collection, foreign_collection, own_tag, foreign_tag])
+    db.flush()
+    db.add_all(
+        [
+            CollectionPaper(
+                user_id=test_user.id,
+                collection_id=own_collection.id,
+                user_paper_id=own_link.id,
+            ),
+            CollectionPaper(
+                user_id=another_user.id,
+                collection_id=foreign_collection.id,
+                user_paper_id=foreign_link.id,
+            ),
+            PaperTag(
+                user_id=test_user.id, tag_id=own_tag.id, user_paper_id=own_link.id
+            ),
+            PaperTag(
+                user_id=another_user.id,
+                tag_id=foreign_tag.id,
+                user_paper_id=foreign_link.id,
+            ),
+            Annotation(
+                user_id=test_user.id,
+                user_paper_id=own_link.id,
+                type="note",
+                content="Private page note",
+                page_number=2,
+            ),
+            Annotation(
+                user_id=another_user.id,
+                user_paper_id=foreign_link.id,
+                type="note",
+                content="Foreign note",
+            ),
+            Document(
+                user_id=test_user.id,
+                user_paper_id=own_link.id,
+                storage_key="private-storage-key.pdf",
+                original_filename="my-paper.pdf",
+                size_bytes=1234,
+                sha256="f" * 64,
+                page_count=7,
+            ),
+            Document(
+                user_id=another_user.id,
+                user_paper_id=foreign_link.id,
+                storage_key="foreign-storage-key.pdf",
+                original_filename="other.pdf",
+                size_bytes=4321,
+                sha256="e" * 64,
+                page_count=8,
+            ),
+        ]
+    )
+    db.commit()
     response = client.get(f"{ME}/export", headers=headers(access_token))
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
     data = response.json()
     assert data["account"]["id"] == test_user.id
     assert {paper["id"] for paper in data["papers"]} == {own.id}
+    assert data["collections"][0]["name"] == "Private collection"
+    assert data["tags"][0]["name"] == "Private tag"
+    assert len(data["library_items"]) == 1
+    item = data["library_items"][0]
+    assert item["user_paper_id"] == own_link.id
+    assert item["collection_ids"] == [own_collection.id]
+    assert item["tag_ids"] == [own_tag.id]
+    assert item["annotations"][0]["content"] == "Private page note"
+    assert item["document"]["original_filename"] == "my-paper.pdf"
+    assert "storage_key" not in response.text
+    assert "private-storage-key" not in response.text
+    assert "foreign-storage-key" not in response.text
+    assert "Foreign collection" not in response.text
+    assert "Foreign tag" not in response.text
+    assert "Foreign note" not in response.text
     assert all(paper["id"] != foreign.id for paper in data["papers"])
     assert data["profile"]["user_id"] == data["preferences"]["user_id"] == test_user.id
     assert {session["id"] for session in data["active_sessions"]} == {
