@@ -34,6 +34,9 @@ from app.modules.documents.queue import DocumentDispatcher
 from app.modules.documents.router import router as documents_router
 from app.modules.library.cleanup import run_pdf_cleanup
 from app.modules.library.router import router as library_router
+from app.modules.multimodal.cleanup import run_asset_cleanup
+from app.modules.multimodal.processing import run_jobs as run_asset_jobs
+from app.modules.multimodal.router import router as multimodal_router
 from app.modules.writing.router import router as writing_router
 from app.routers.auth import router as auth_router
 from app.routers.papers import router as papers_router
@@ -113,9 +116,23 @@ async def lifespan(app: FastAPI):
         if settings.APP_ENV != "test"
         else None
     )
+    asset_tasks = []
+    if settings.APP_ENV != "test":
+        asset_tasks.append(
+            asyncio.create_task(run_asset_cleanup(app.state.discovery_session_factory))
+        )
+        if settings.MULTIMODAL_WORKER_IN_API:
+            asset_tasks.append(
+                asyncio.create_task(run_asset_jobs(app.state.discovery_session_factory))
+            )
     try:
         yield
     finally:
+        for task in asset_tasks:
+            task.cancel()
+        for task in asset_tasks:
+            with suppress(asyncio.CancelledError):
+                await task
         if cleanup_task:
             cleanup_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -169,6 +186,7 @@ for router in (
     analysis_router,
     citations_router,
     writing_router,
+    multimodal_router,
 ):
     app.include_router(router, prefix="/api/v1")
 

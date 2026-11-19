@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     AI_MAX_COMPLETION_TOKENS: int = Field(800, ge=64, le=2048)
     AI_MIN_RELEVANCE: float = Field(0.18, ge=0.05, le=1)
     ANALYSIS_MAX_COMPLETION_TOKENS: int = Field(4096, ge=512, le=8192)
+    OLLAMA_VISION_MODEL: str = "llama3.2-vision"
+    CLOUD_VISION_MODEL: str = "gpt-4.1-mini"
+    ASSET_STORAGE_ROOT: Path = Path("storage/assets")
+    MULTIMODAL_WORKER_IN_API: bool = True
 
     @field_validator("OLLAMA_BASE_URL", "CLOUD_AI_BASE_URL")
     @classmethod

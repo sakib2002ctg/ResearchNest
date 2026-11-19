@@ -26,8 +26,9 @@ def test_migration_chain_is_linear_and_generates_postgresql_ddl(
     monkeypatch.setattr(settings, "PGVECTOR_ENABLED", vector_enabled)
     config = migration_config("postgresql://localhost/offline")
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["b8d29e6a410c"]
+    assert script.get_heads() == ["c9e30f7b521d"]
     assert [revision.revision for revision in script.walk_revisions()] == [
+        "c9e30f7b521d",
         "b8d29e6a410c",
         "a7c14e5f902b",
         "f6b92d04a173",
@@ -130,6 +131,10 @@ def test_postgresql_migration_round_trip():
             "writing_documents",
             "writing_versions",
             "writing_citations",
+            "document_assets",
+            "asset_chunk_links",
+            "asset_extraction_jobs",
+            "asset_deletions",
         }
         assert {
             (
@@ -169,7 +174,7 @@ def test_postgresql_migration_round_trip():
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
-                == "b8d29e6a410c"
+                == "c9e30f7b521d"
             )
             user_id = connection.execute(
                 text(
@@ -200,7 +205,7 @@ def test_postgresql_migration_round_trip():
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
-                == "b8d29e6a410c"
+                == "c9e30f7b521d"
             )
             connection.execute(text("DELETE FROM pdf_deletions"))
 

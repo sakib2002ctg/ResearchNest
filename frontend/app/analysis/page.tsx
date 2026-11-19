@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { MultimodalAssetsPanel } from "@/components/MultimodalAssetsPanel";
 import { api, ApiError, type AIProvider, type AIUsageStats, type AnalysisEvidence, type AnalysisField, type ExtractionFields, type Language, type LibraryPaper, type PaperAnalysis, type PaperComparison, type Preferences } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
@@ -158,6 +159,7 @@ function Workspace() {
           <ResultHeading stale={analysis.is_stale} provider={analysis.provider_used} model={analysis.model_used} language={analysis.language} />
           {analysis.status === "failed" && <p role="alert" className="notice error">{pick("The last analysis failed. Regenerate to retry.", "সর্বশেষ বিশ্লেষণ ব্যর্থ হয়েছে। আবার তৈরি করে চেষ্টা করুন।")}</p>}
           <div className={styles.cards}>{groups.map((fields, i) => <article key={i} className="card">{fields.map((field) => <Field key={field} name={field} result={analysis} stale={analysis.is_stale} open={openEvidence} />)}</article>)}</div>
+          {analysis.document_id && <MultimodalAssetsPanel documentId={analysis.document_id} documentVersion={analysis.document_version} indexed={!analysis.is_stale && analysis.status === "completed"} />}
         </> : tab === "compare" && comparison ? <>
           <ResultHeading stale={comparison.is_stale} provider={comparison.provider_used} model={comparison.model_used} language={comparison.language} />
           <section className="card"><h2>{comparison.title}</h2><div className={styles.tableWrap}><table className={styles.matrix}><caption>{pick("Comparison of selected papers", "নির্বাচিত গবেষণাপত্রগুলোর তুলনা")}</caption><thead><tr><th scope="col">{pick("Dimension", "বিষয়")}</th>{comparison.comparison_matrix.map((column) => <th scope="col" key={column.user_paper_id}>{column.paper_title}</th>)}</tr></thead><tbody>{compareFields.map((field) => <tr key={field}><th scope="row">{pick(...labels[field])}</th>{comparison.comparison_matrix.map((column) => <td key={column.user_paper_id}><Field name={field} result={column} stale={comparison.is_stale} open={openEvidence} compact /></td>)}</tr>)}</tbody></table></div></section>

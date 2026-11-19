@@ -554,6 +554,13 @@ function searchParams(values: Record<string, string | number | undefined>): stri
 }
 
 export const api = {
+  extractDocumentAssets: (documentId: number) => request<AssetExtraction>(`/multimodal/documents/${documentId}/extract`, { method: "POST" }),
+  getDocumentAssets: (documentId: number, params: { asset_type?: DocumentAssetType; page_number?: number } = {}, signal?: AbortSignal) =>
+    request<DocumentAssets>(`/multimodal/documents/${documentId}/assets?${searchParams(params)}`, { signal }),
+  getDocumentAsset: (assetId: number, signal?: AbortSignal) => request<DocumentAssetDetail>(`/multimodal/assets/${assetId}`, { signal }),
+  getDocumentAssetImage: (assetId: number, signal?: AbortSignal) => request<Blob>(`/multimodal/assets/${assetId}/image`, { responseType: "download", expectedMime: "image/png", signal }),
+  explainDocumentAsset: (assetId: number, body: VisionOptions) => request<VisionAnswer>(`/multimodal/assets/${assetId}/explain`, { method: "POST", body }),
+  questionDocumentAsset: (assetId: number, body: VisionOptions & { question: string }) => request<VisionAnswer>(`/multimodal/assets/${assetId}/vqa`, { method: "POST", body }),
   getCitations: (limit = 50, offset = 0, q?: string) => request<Citation[]>(`/citations?${searchParams({ limit, offset, q })}`),
   createCitation: (body: CitationInput) => request<Citation>("/citations", { method: "POST", body }),
   updateCitation: (id: number, body: CitationInput) => request<Citation>(`/citations/${id}`, { method: "PUT", body }),
@@ -738,6 +745,34 @@ export interface AIQuotaWindow {
 export interface AIUsageStats {
   hourly: AIQuotaWindow; daily: AIQuotaWindow; active_requests: number;
   max_concurrent_requests: number; window_type: "rolling";
+}
+
+export type DocumentAssetType = "figure" | "chart" | "diagram" | "table" | "equation";
+export interface AssetExtraction {
+  job_id: number; status: "queued" | "running" | "completed" | "failed";
+  document_id: number; document_version: number; error_message?: string | null;
+}
+export interface DocumentAsset {
+  id: number; document_id: number; document_version: number; asset_type: DocumentAssetType;
+  asset_label: string | null; page_number: number; caption: string | null;
+  extracted_text_or_latex: string | null;
+  structured_data: { bbox?: number[]; headers?: unknown[]; rows?: unknown[][]; [key: string]: unknown } | null;
+  linked_chunk_ids: number[]; ai_explanation: string | null; has_image: boolean;
+  created_at: string; updated_at: string;
+}
+export interface DocumentAssetDetail extends DocumentAsset {
+  linked_chunks: Array<{ id: number; page_number: number; section_heading: string | null; content: string }>;
+}
+export interface DocumentAssets {
+  items: DocumentAsset[]; extraction: AssetExtraction | null; is_stale: boolean;
+}
+export interface VisionOptions { language: Language; provider: AIProvider; request_id: string }
+export interface VisionAnswer {
+  asset_id: number; language: Language;
+  evidence_status: "supported" | "partial_interpretation" | "insufficient_evidence";
+  extracted_facts: string[]; visual_interpretation: string; missing_information: string;
+  provider_used: string; model_used: string;
+  evidence: { page_number: number; asset_label: string | null; linked_chunk_ids: number[] };
 }
 
 export type AnalysisField = "abstract_summary" | "research_problem" | "research_objectives" | "methodology" | "datasets" | "models_and_algorithms" | "evaluation_metrics" | "key_results" | "contributions" | "limitations" | "future_work" | "strengths" | "weaknesses";

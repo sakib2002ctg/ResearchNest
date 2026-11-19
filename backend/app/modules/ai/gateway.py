@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 from dataclasses import dataclass
 from typing import Callable, Literal
@@ -119,9 +120,56 @@ class HTTPProvider:
             completion,
         )
 
-    async def _complete(self, messages, max_tokens):
+    async def generate_vision(
+        self, messages, image_bytes, evidence, language, question
+    ):
+        from app.modules.multimodal.vision import VisionOutput
+
+        model = (
+            settings.CLOUD_VISION_MODEL
+            if self.name == "cloud"
+            else settings.OLLAMA_VISION_MODEL
+        )
+        content, prompt, completion = await self._complete(
+            messages,
+            settings.AI_MAX_COMPLETION_TOKENS,
+            image_bytes=image_bytes,
+            model=model,
+        )
+        return StructuredResult(
+            VisionOutput.model_validate_json(content),
+            self.name,
+            model,
+            prompt,
+            completion,
+        )
+
+    async def _complete(self, messages, max_tokens, *, image_bytes=None, model=None):
         ollama = self.protocol == "ollama"
-        payload = {"model": self.model, "messages": messages, "stream": False}
+        messages = [dict(message) for message in messages]
+        if image_bytes is not None:
+            encoded = base64.b64encode(image_bytes).decode("ascii")
+            user = next(
+                (
+                    message
+                    for message in reversed(messages)
+                    if message["role"] == "user"
+                ),
+                None,
+            )
+            if user is None:
+                raise ValueError("Vision requests need a user context.")
+            if ollama:
+                user["images"] = [encoded]
+            else:
+                user["content"] = [
+                    {"type": "text", "text": user["content"]},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "data:image/png;base64," + encoded},
+                    },
+                ]
+        payload = {"model": model or self.model, "messages": messages, "stream": False}
         if ollama:
             payload.update(
                 format="json",
@@ -250,4 +298,71 @@ class AIProviderGateway:
             schema.model_validate(offline_factory().model_dump()),
             self.offline.name,
             self.offline.model,
+        )
+
+    async def generate_vision(
+        self,
+        provider,
+        messages,
+        image_bytes,
+        evidence,
+        language="en",
+        question=None,
+        *,
+        allow_external_ai=False,
+    ) -> StructuredResult:
+        from app.modules.multimodal.vision import (
+            VisionOutput,
+            offline_vision,
+            question_supported,
+            validate_image,
+            verify_vision,
+            vision_messages,
+        )
+
+        if language not in {"en", "bn"}:
+            raise ValueError("Unsupported vision response language.")
+        if provider is self.cloud or getattr(provider, "name", None) == "cloud":
+            if not allow_external_ai:
+                raise HTTPException(
+                    403,
+                    "External AI is disabled. Enable consent "
+                    "in Settings before sending images to cloud AI.",
+                )
+        validate_image(image_bytes)
+        # Build instructions here so uploaded content can only enter user context.
+        messages = vision_messages(evidence, language, question)
+        if sum(len(m["content"].encode()) for m in messages) > 100000:
+            raise ValueError("Vision context exceeds the request limit.")
+        if not question_supported(evidence, question):
+            return StructuredResult(
+                offline_vision(evidence, language, question),
+                self.offline.name,
+                "visual-extractive-v1",
+            )
+        if provider is not self.offline:
+            try:
+                async with asyncio.timeout(8):
+                    result = await provider.generate_vision(
+                        messages, image_bytes, evidence, language, question
+                    )
+                    result.payload = VisionOutput.model_validate(
+                        result.payload.model_dump()
+                    )
+                    verify_vision(result.payload, evidence, language, question)
+                    return result
+            except (
+                httpx.HTTPError,
+                TimeoutError,
+                ValueError,
+                KeyError,
+                IndexError,
+                TypeError,
+                AttributeError,
+            ):
+                pass
+        return StructuredResult(
+            offline_vision(evidence, language, question),
+            self.offline.name,
+            "visual-extractive-v1",
         )

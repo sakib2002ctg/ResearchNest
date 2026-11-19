@@ -16,6 +16,12 @@ from app.models.library import (
     PDFDeletion,
     Tag,
 )
+from app.models.multimodal import (
+    AssetChunkLink,
+    AssetDeletion,
+    AssetExtractionJob,
+    DocumentAsset,
+)
 from app.models.paper import Author, Paper, PaperAuthor, PaperSource, UserPaper
 from app.models.profile import Profile
 from app.models.research_paper import ResearchPaper
@@ -31,6 +37,10 @@ from app.models.writing import (
 )
 
 __all__ = [
+    "AssetChunkLink",
+    "AssetDeletion",
+    "AssetExtractionJob",
+    "DocumentAsset",
     "Citation",
     "WritingCitation",
     "WritingDocument",
