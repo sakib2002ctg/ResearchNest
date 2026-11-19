@@ -120,3 +120,55 @@ test("PDF download requires the bearer header and validates the response MIME", 
   assert.equal(captured.init.headers.Authorization, "Bearer library-download-test-token");
   assert.equal(captured.url.search, "");
 });
+
+test("document indexing endpoints use authenticated, page-scoped API routes", async () => {
+  const requests = [];
+  const responses = [
+    { id: 12, user_paper_id: 7, page_count: 4, status: "completed", version: 2 },
+    { document_id: 12, status: "completed", version: 2, jobs: [] },
+    {
+      items: [
+        { page_number: 11, raw_text: "English and বাংলা", ocr_used: true, section_heading: "Findings" },
+      ],
+      page: 2,
+      size: 10,
+      total: 12,
+      pages: 2,
+    },
+    { document_id: 12, status: "pending", version: 3, jobs: [] },
+  ];
+  globalThis.fetch = async (url, init) => {
+    requests.push({ url: new URL(url), init });
+    return Response.json(responses.shift());
+  };
+  setAccessToken("document-indexing-test-token");
+  try {
+    assert.deepEqual(await api.getDocument(12), {
+      id: 12, user_paper_id: 7, page_count: 4, status: "completed", version: 2,
+    });
+    assert.equal((await api.getDocumentStatus(12)).status, "completed");
+    const pages = await api.getDocumentPages(12, 2, 10);
+    assert.equal(pages.items[0].raw_text, "English and বাংলা");
+    assert.equal(pages.items[0].ocr_used, true);
+    assert.equal(pages.items[0].page_number, 11);
+    assert.deepEqual(await api.retryDocument(12), {
+      document_id: 12, status: "pending", version: 3, jobs: [],
+    });
+  } finally {
+    clearAccessToken();
+  }
+  assert.deepEqual(requests.map(({ url }) => url.pathname), [
+    "/api/v1/documents/12",
+    "/api/v1/documents/12/status",
+    "/api/v1/documents/12/pages",
+    "/api/v1/documents/12/retry",
+  ]);
+  assert.equal(requests[2].url.searchParams.get("page"), "2");
+  assert.equal(requests[2].url.searchParams.get("size"), "10");
+  assert.equal(requests[3].init.method, "POST");
+  for (const { init } of requests) {
+    assert.equal(init.headers.Authorization, "Bearer document-indexing-test-token");
+    assert.equal(init.credentials, "omit");
+    assert.equal(init.redirect, "error");
+  }
+});

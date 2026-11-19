@@ -23,6 +23,10 @@ from app.modules.discovery.providers import (
     SemanticScholarProvider,
 )
 from app.modules.discovery.router import router as discovery_router
+from app.modules.documents.processing import DocumentProcessor
+from app.modules.documents.providers import embedding_provider
+from app.modules.documents.queue import DocumentDispatcher
+from app.modules.documents.router import router as documents_router
 from app.modules.library.cleanup import run_pdf_cleanup
 from app.modules.library.router import router as library_router
 from app.routers.auth import router as auth_router
@@ -88,6 +92,15 @@ async def lifespan(app: FastAPI):
         cache=SearchCache(redis),
     )
     app.state.discovery_gateway = gateway
+    provider = embedding_provider()
+    document_dispatcher = DocumentDispatcher(
+        app.state.discovery_session_factory,
+        DocumentProcessor(app.state.discovery_session_factory, provider),
+        redis,
+    )
+    app.state.document_dispatcher = document_dispatcher
+    if settings.APP_ENV != "test" and settings.DOCUMENT_WORKER_IN_API:
+        await document_dispatcher.start()
     cleanup_task = (
         asyncio.create_task(run_pdf_cleanup(app.state.discovery_session_factory))
         if settings.APP_ENV != "test"
@@ -100,6 +113,9 @@ async def lifespan(app: FastAPI):
             cleanup_task.cancel()
             with suppress(asyncio.CancelledError):
                 await cleanup_task
+        await document_dispatcher.close()
+        if hasattr(provider, "close"):
+            provider.close()
         try:
             await gateway.close()
         finally:
@@ -140,6 +156,7 @@ for router in (
     auth_router,
     discovery_router,
     library_router,
+    documents_router,
 ):
     app.include_router(router, prefix="/api/v1")
 

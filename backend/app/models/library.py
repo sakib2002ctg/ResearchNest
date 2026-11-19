@@ -13,7 +13,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from app.database.database import Base
 
@@ -144,21 +144,53 @@ class Document(Base):
         ),
         UniqueConstraint("user_paper_id", name="uq_documents_user_paper"),
         UniqueConstraint("storage_key", name="uq_documents_storage_key"),
+        UniqueConstraint("id", "user_id", name="uq_documents_id_user_id"),
         CheckConstraint("size_bytes > 0", name="ck_documents_size_bytes"),
         CheckConstraint("page_count > 0", name="ck_documents_page_count"),
+        CheckConstraint(
+            "status IN ('pending', 'processing', 'completed', 'failed')",
+            name="ck_documents_intelligence_status",
+        ),
+        CheckConstraint("version > 0", name="ck_documents_intelligence_version"),
         Index("ix_documents_owner_paper", "user_id", "user_paper_id"),
+        Index("ix_documents_intelligence_owner_status", "user_id", "status"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int]
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", name="fk_documents_user", ondelete="CASCADE")
+    )
     user_paper_id: Mapped[int]
     storage_key: Mapped[str] = mapped_column(String(80))
     original_filename: Mapped[str] = mapped_column(String(255))
     size_bytes: Mapped[int] = mapped_column(BigInteger)
     sha256: Mapped[str] = mapped_column(String(64))
     page_count: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(
+        String(16), default="pending", server_default="pending", nullable=False
+    )
+    error_message: Mapped[str | None] = mapped_column(Text)
+    version: Mapped[int] = mapped_column(
+        Integer, default=1, server_default="1", nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    # Phase 04 called this physical field sha256. Keep the old column and API
+    # compatibility while exposing the Phase 05 file_hash vocabulary.
+    file_hash = synonym("sha256")
+    pages = relationship(
+        "DocumentPage", back_populates="document", cascade="all, delete-orphan"
+    )
+    chunks = relationship(
+        "DocumentChunk", back_populates="document", cascade="all, delete-orphan"
+    )
+    processing_jobs = relationship(
+        "ProcessingJob", back_populates="document", cascade="all, delete-orphan"
     )
 
 

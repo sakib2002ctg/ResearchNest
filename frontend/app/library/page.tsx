@@ -93,6 +93,15 @@ function LibraryWorkspace() {
     return () => { current = false; };
   }, [query, collectionId, tagId, page, revision]);
 
+  useEffect(() => {
+    const processing = result?.items.some((paper) =>
+      paper.document?.status === "pending" || paper.document?.status === "processing",
+    );
+    if (!processing) return;
+    const timer = window.setTimeout(() => setRevision((value) => value + 1), 3000);
+    return () => window.clearTimeout(timer);
+  }, [result]);
+
   function refresh(wait = false) {
     if (wait) setResult(null);
     setLoadError(false);
@@ -200,6 +209,26 @@ function LibraryWorkspace() {
     }
   }
 
+  async function retryIndexing(paper: LibraryPaper) {
+    if (!paper.document || pending) return;
+    setPending(true);
+    setNotice(null);
+    try {
+      const status = await api.retryDocument(paper.document.id);
+      setResult((current) => current && ({
+        ...current,
+        items: current.items.map((item) => item.id === paper.id && item.document
+          ? { ...item, document: { ...item.document, status: status.status, version: status.version } }
+          : item),
+      }));
+      setNotice({ text: pick("Document indexing was queued again.", "ডকুমেন্ট ইনডেক্স আবার কিউ করা হয়েছে।") });
+    } catch {
+      setNotice({ error: true, text: pick("Document indexing could not be retried.", "ডকুমেন্ট ইনডেক্স আবার শুরু করা যায়নি।") });
+    } finally {
+      setPending(false);
+    }
+  }
+
   const number = (value: number) => value.toLocaleString(locale);
   const field = (key: keyof typeof blankPaper, value: string) => setDraft((current) => ({ ...current, [key]: value }));
   const closeModal = () => { if (!pending) showModal(null); };
@@ -293,6 +322,21 @@ function LibraryWorkspace() {
                     <article className="card min-w-0" key={paper.id}>
                       <div className="flex flex-wrap gap-2 mb-2">
                         {paper.source && <span className="tag">{paper.source}</span>}
+                        {paper.document && (
+                          <>
+                            <span className="tag" aria-label={pick("Document indexing status", "ডকুমেন্ট ইনডেক্সের অবস্থা")}>
+                              {({
+                                pending: pick("Pending indexing", "ইনডেক্সের অপেক্ষায়"),
+                                processing: pick("Indexing", "ইনডেক্স করা হচ্ছে"),
+                                completed: pick("Indexed", "ইনডেক্স সম্পন্ন"),
+                                failed: pick("Indexing failed", "ইনডেক্স ব্যর্থ"),
+                              })[paper.document.status]}
+                            </span>
+                            <span className="muted text-xs">
+                              {paper.document.page_count.toLocaleString(locale)} {pick("pages", "পৃষ্ঠা")}
+                            </span>
+                          </>
+                        )}
                         {selectedLabels.map((item) => <span className="tag break-all" key={item.key}>{item.name}</span>)}
                       </div>
                       <h3 className="text-lg font-semibold break-words">{paper.title}</h3>
@@ -310,6 +354,7 @@ function LibraryWorkspace() {
                         <button type="button" className="button secondary small" onClick={() => setOrganizing(paper)}>{pick("Organize", "সাজান")}</button>
                         {!paper.document && <button type="button" className="button secondary small" disabled={pending} onClick={() => showModal("upload", paper)}>{pick("Attach PDF", "PDF সংযুক্ত করুন")}</button>}
                         {paper.document && <button type="button" className="button secondary small" disabled={pending} onClick={() => void remove(paper, true)}>{pick("Remove PDF", "PDF সরান")}</button>}
+                        {paper.document?.status === "failed" && <button type="button" className="button secondary small" disabled={pending} onClick={() => void retryIndexing(paper)}>{pick("Retry indexing", "ইনডেক্স আবার করুন")}</button>}
                         {url && <a className="button secondary small" href={url} target="_blank" rel="noopener noreferrer">{pick("Read original", "মূল প্রকাশনা পড়ুন")}<Icon name="external-link" size={14} /></a>}
                         {paper.legacy_paper_id !== null && <button type="button" className="button ghost small" disabled={pending} onClick={() => void remove(paper, false)}>{pick("Remove paper", "গবেষণাপত্র সরান")}</button>}
                       </div>
@@ -374,7 +419,7 @@ function LibraryWorkspace() {
         <OrganizeLibrary group={modal} items={modal === "collections" ? collections : tags}
           refresh={() => { setOrganizationRevision((value) => value + 1); refresh(); }} close={closeModal} />
       )}
-      {viewer && <DocumentViewer paper={viewer} onClose={() => setViewer(null)} />}
+      {viewer && <DocumentViewer paper={viewer} onClose={() => { setViewer(null); refresh(); }} />}
       {organizing && <PaperOrganization paper={organizing} collections={collections} tags={tags}
         refresh={refresh} close={() => setOrganizing(null)} />}
     </>

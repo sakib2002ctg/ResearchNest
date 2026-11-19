@@ -87,6 +87,8 @@ def test_private_pdf_round_trip_and_tenant_isolation(
         "original_filename": "পরীক্ষা.pdf",
         "size_bytes": len(pdf),
         "page_count": 2,
+        "status": "pending",
+        "version": 1,
     }
     document = db.get(Document, result["id"])
     assert document.user_id == test_user.id

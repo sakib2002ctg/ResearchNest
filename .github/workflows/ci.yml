@@ -36,6 +36,7 @@ jobs:
       DATABASE_URL: sqlite://
       TEST_MIGRATION_DATABASE_URL: postgresql://researchnest:migration-test@127.0.0.1:5432/researchnest_migrations
       TEST_IDENTITY_DATABASE_URL: postgresql://researchnest:migration-test@127.0.0.1:5432/researchnest_identity
+      PGVECTOR_ENABLED: "true"
       SECRET_KEY: test-secret-key
       DEBUG: "true"
       ALGORITHM: HS256

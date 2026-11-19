@@ -21,6 +21,7 @@ from starlette.responses import StreamingResponse
 from app.core.logging import logger
 from app.database.discovery_database import get_discovery_db
 from app.models.audit_log import AuditLog
+from app.models.document_intelligence import ProcessingJob
 from app.models.library import Document, PDFDeletion
 from app.models.paper import UserPaper
 from app.models.research_paper import ResearchPaper
@@ -72,6 +73,8 @@ class DocumentResponse(BaseModel):
     original_filename: str
     size_bytes: int
     page_count: int
+    status: str
+    version: int
 
 
 class _FormTooLarge(MultiPartException):
@@ -235,6 +238,7 @@ async def _store_document(
     filename: str,
     title: str,
     paper_id: int | None,
+    dispatcher=None,
 ) -> DocumentResponse:
     if paper_id is not None:
         await _check_attachment_target(db, owner, paper_id)
@@ -268,6 +272,13 @@ async def _store_document(
             )
             db.add(document)
             await db.flush()
+            job = ProcessingJob(
+                document_id=document.id,
+                user_id=owner,
+                document_version=document.version,
+            )
+            db.add(job)
+            await db.flush()
             db.add(
                 AuditLog(
                     user_id=owner,
@@ -282,8 +293,12 @@ async def _store_document(
                 original_filename=filename,
                 size_bytes=stored.size,
                 page_count=stored.pages,
+                status=document.status,
+                version=document.version,
             )
             await db.commit()
+            if dispatcher is not None:
+                await dispatcher.enqueue(job.id)
         except BaseException:
             try:
                 await db.rollback()
@@ -323,7 +338,15 @@ async def upload_pdf(request: Request, owner: Owner, db: DB) -> DocumentResponse
         form = await _read_form(request)
         try:
             upload, filename, title, paper_id = _extract_form_values(form)
-            return await _store_document(db, owner, upload, filename, title, paper_id)
+            return await _store_document(
+                db,
+                owner,
+                upload,
+                filename,
+                title,
+                paper_id,
+                request.app.state.document_dispatcher,
+            )
         finally:
             with CancelScope(shield=True):
                 await form.close()

@@ -4,7 +4,14 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 
 import { Icon } from "@/components/Icon";
-import { api, type LibraryAnnotation, type LibraryAnnotationInput, type LibraryPaper } from "@/lib/api";
+import {
+  api,
+  type DocumentPage,
+  type DocumentProcessingStatus,
+  type LibraryAnnotation,
+  type LibraryAnnotationInput,
+  type LibraryPaper,
+} from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
 export function LibraryDialog({ title, onClose, children, wide = false }: {
@@ -44,6 +51,17 @@ const emptyAnnotation: LibraryAnnotationInput = {
 };
 const colors = ["#fde68a", "#bbf7d0", "#bfdbfe", "#fbcfe8"];
 
+function processingName(status: DocumentProcessingStatus, pick: (en: string, bn: string) => string): string {
+  const names: Record<DocumentProcessingStatus, [string, string]> = {
+    pending: ["Pending", "অপেক্ষমাণ"],
+    processing: ["Processing", "প্রক্রিয়াধীন"],
+    completed: ["Indexed", "ইনডেক্স সম্পন্ন"],
+    failed: ["Failed", "ব্যর্থ"],
+  };
+  const [en, bn] = names[status];
+  return pick(en, bn);
+}
+
 export function DocumentViewer({ paper, onClose }: { paper: LibraryPaper; onClose: () => void }) {
   const { pick, locale } = useI18n();
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
@@ -57,7 +75,103 @@ export function DocumentViewer({ paper, onClose }: { paper: LibraryPaper; onClos
   const [draft, setDraft] = useState<LibraryAnnotationInput>(emptyAnnotation);
   const [pending, setPending] = useState(false);
   const [savingError, setSavingError] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState<DocumentProcessingStatus>(
+    paper.document?.status ?? "pending",
+  );
+  const [documentVersion, setDocumentVersion] = useState(paper.document?.version ?? 1);
+  const [documentPages, setDocumentPages] = useState<DocumentPage[]>([]);
+  const [pagesPage, setPagesPage] = useState(1);
+  const [pagesTotal, setPagesTotal] = useState(0);
+  const [pagesCount, setPagesCount] = useState(0);
+  const [processingError, setProcessingError] = useState<string | null>(null);
+  const [retryPending, setRetryPending] = useState(false);
+  const [statusRevision, setStatusRevision] = useState(0);
+  const [pagesLoadedKey, setPagesLoadedKey] = useState("");
   const document = paper.document;
+  const pagesKey = [document?.id, documentVersion, pagesPage].join("-");
+
+  useEffect(() => {
+    if (!document) return;
+    const controller = new AbortController();
+    let active = true;
+    api.getDocument(document.id, controller.signal).then((metadata) => {
+      if (!active) return;
+      setProcessingStatus(metadata.status);
+      setDocumentVersion(metadata.version);
+      setPageCount(metadata.page_count);
+    }).catch(() => {
+      if (active) setProcessingError(pick("Document details could not be loaded.", "ডকুমেন্টের তথ্য লোড করা যায়নি।"));
+    });
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [document, pick]);
+
+  useEffect(() => {
+    if (!document) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let active = true;
+    const loadStatus = async () => {
+      try {
+        const status = await api.getDocumentStatus(document.id, controller.signal);
+        if (!active) return;
+        setProcessingStatus(status.status);
+        setDocumentVersion(status.version);
+        const latestError = status.status === "failed"
+          ? status.jobs.find((job) => job.document_version === status.version && job.status === "failed")?.last_error ?? null
+          : null;
+        setProcessingError(latestError);
+        if (status.status === "pending" || status.status === "processing") {
+          timer = setTimeout(loadStatus, 3000);
+        }
+      } catch {
+        if (active) setProcessingError(pick("Indexing status could not be loaded.", "ইনডেক্সের অবস্থা লোড করা যায়নি।"));
+      }
+    };
+    void loadStatus();
+    return () => {
+      active = false;
+      controller.abort();
+      if (timer) clearTimeout(timer);
+    };
+  }, [document, pick, statusRevision]);
+
+  useEffect(() => {
+    if (!document || processingStatus !== "completed") return;
+    const controller = new AbortController();
+    api.getDocumentPages(document.id, pagesPage, 10, controller.signal).then((response) => {
+      if (controller.signal.aborted) return;
+      setDocumentPages(response.items);
+      setPagesCount(response.pages);
+      setPagesTotal(response.total);
+      setPagesLoadedKey(pagesKey);
+    }).catch(() => {
+      if (!controller.signal.aborted) setProcessingError(
+        pick("Indexed pages could not be loaded.", "ইনডেক্স করা পৃষ্ঠাগুলো লোড করা যায়নি।"),
+      );
+    });
+    return () => controller.abort();
+  }, [document, pagesPage, processingStatus, pick, pagesKey]);
+
+  async function retryIndexing() {
+    if (!document || retryPending) return;
+    setRetryPending(true);
+    setProcessingError(null);
+    try {
+      const status = await api.retryDocument(document.id);
+      setProcessingStatus(status.status);
+      setDocumentVersion(status.version);
+      setPagesPage(1);
+      setDocumentPages([]);
+      setStatusRevision((value) => value + 1);
+    } catch {
+      setProcessingError(pick("Indexing could not be retried.", "ইনডেক্স আবার শুরু করা যায়নি।"));
+    } finally {
+      setRetryPending(false);
+    }
+  }
 
   useEffect(() => {
     if (!document) return;
@@ -200,6 +314,13 @@ export function DocumentViewer({ paper, onClose }: { paper: LibraryPaper; onClos
           <div className="min-w-0">
             <div className="paper-actions mt-0 mb-3 items-center">
               <span className="muted text-sm break-all">{document.original_filename}</span>
+              <span className="tag">{processingName(processingStatus, pick)}</span>
+              <span className="muted text-xs">{pick("Version", "সংস্করণ")} {documentVersion} · {document.page_count.toLocaleString(locale)} {pick("pages", "পৃষ্ঠা")}</span>
+              {processingStatus === "failed" && (
+                <button type="button" className="button secondary small" disabled={retryPending} onClick={() => void retryIndexing()}>
+                  {retryPending ? pick("Retrying…", "আবার শুরু হচ্ছে…") : pick("Retry indexing", "ইনডেক্স আবার করুন")}
+                </button>
+              )}
               {downloadUrl && (
                 <a className="button secondary small" href={downloadUrl} download={document.original_filename}>
                   <Icon name="download" size={16} /> {pick("Download PDF", "PDF ডাউনলোড")}
@@ -224,6 +345,40 @@ export function DocumentViewer({ paper, onClose }: { paper: LibraryPaper; onClos
                 </div>
               </>
             ) : <p role="status" className="muted">{pick("Loading PDF…", "PDF লোড হচ্ছে…")}</p>}
+            {processingError && <p className="notice error mt-3" role="alert">{processingError}</p>}
+            {processingStatus === "completed" && (
+              <section className="mt-5" aria-label={pick("Indexed page text", "ইনডেক্স করা পৃষ্ঠার লেখা")}>
+                <div className="section-heading mb-3">
+                  <h3 className="font-semibold">{pick("Indexed text", "ইনডেক্স করা লেখা")}</h3>
+                  <span className="muted text-xs">{pagesTotal.toLocaleString(locale)} {pick("pages", "পৃষ্ঠা")}</span>
+                </div>
+                {pagesLoadedKey !== pagesKey ? (
+                  <p role="status" className="muted text-sm">{pick("Loading indexed pages…", "ইনডেক্স করা পৃষ্ঠাগুলো লোড হচ্ছে…")}</p>
+                ) : documentPages.length === 0 ? (
+                  <p className="muted text-sm">{pick("No extracted text was returned.", "কোনো নিষ্কাশিত লেখা পাওয়া যায়নি।")}</p>
+                ) : (
+                  <div className="grid gap-3">
+                    {documentPages.map((item) => (
+                      <article className="session-card m-0" key={item.page_number}>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="tag">{pick("Page", "পৃষ্ঠা")} {item.page_number.toLocaleString(locale)}</span>
+                          {item.ocr_used && <span className="tag">{pick("OCR", "OCR")}</span>}
+                          {item.section_heading && <span className="muted text-xs">{item.section_heading}</span>}
+                        </div>
+                        <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7">{item.raw_text || pick("This page has no extractable text.", "এই পৃষ্ঠায় নিষ্কাশনযোগ্য লেখা নেই।")}</p>
+                      </article>
+                    ))}
+                  </div>
+                )}
+                {pagesCount > 1 && (
+                  <div className="library-pdf-navigation mt-3">
+                    <button type="button" className="button secondary small" disabled={pagesPage <= 1} onClick={() => setPagesPage((value) => value - 1)}>{pick("Previous text", "আগের লেখা")}</button>
+                    <span className="muted text-sm">{pagesPage.toLocaleString(locale)} / {pagesCount.toLocaleString(locale)}</span>
+                    <button type="button" className="button secondary small" disabled={pagesPage >= pagesCount} onClick={() => setPagesPage((value) => value + 1)}>{pick("Next text", "পরের লেখা")}</button>
+                  </div>
+                )}
+              </section>
+            )}
           </div>
         )}
         <section aria-label={pick("Annotations", "টীকা")}>

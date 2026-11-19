@@ -104,9 +104,12 @@ class ProgressResult(Record, ProgressUpdate):
 
 
 class DocumentResult(Record):
+    user_paper_id: int
     original_filename: str
     size_bytes: int
     page_count: int
+    status: Literal["pending", "processing", "completed", "failed"]
+    version: int
 
 
 class LibraryPaperResult(ProgressResult):

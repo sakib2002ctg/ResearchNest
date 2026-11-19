@@ -1,4 +1,10 @@
 from app.models.audit_log import AuditLog
+from app.models.document_intelligence import (
+    DocumentChunk,
+    DocumentPage,
+    Embedding,
+    ProcessingJob,
+)
 from app.models.library import (
     Annotation,
     Collection,
@@ -23,12 +29,16 @@ __all__ = [
     "Collection",
     "CollectionPaper",
     "Document",
+    "DocumentChunk",
+    "DocumentPage",
+    "Embedding",
     "Paper",
     "PaperAuthor",
     "PaperSource",
     "PaperTag",
     "PDFDeletion",
     "Profile",
+    "ProcessingJob",
     "ResearchPaper",
     "Session",
     "Tag",

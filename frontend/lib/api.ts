@@ -88,9 +88,65 @@ export interface ReadingProgress {
 
 export interface LibraryDocument {
   id: number;
+  user_paper_id: number;
   original_filename: string;
   size_bytes: number;
   page_count: number;
+  status: DocumentProcessingStatus;
+  version: number;
+}
+
+export type DocumentProcessingStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "failed";
+
+export type ProcessingJobStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed";
+
+export interface DocumentMetadata {
+  id: number;
+  user_paper_id: number;
+  page_count: number;
+  status: DocumentProcessingStatus;
+  version: number;
+}
+
+export interface DocumentProcessingJob {
+  id: number;
+  status: ProcessingJobStatus;
+  attempts: number;
+  last_error: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  document_version: number;
+}
+
+export interface DocumentStatus {
+  document_id: number;
+  status: DocumentProcessingStatus;
+  version: number;
+  jobs: DocumentProcessingJob[];
+}
+
+export interface DocumentPage {
+  page_number: number;
+  raw_text: string;
+  ocr_used: boolean;
+  section_heading: string | null;
+}
+
+export interface DocumentPageResponse {
+  items: DocumentPage[];
+  page: number;
+  size: number;
+  total: number;
+  pages: number;
 }
 
 export interface LibraryPaper extends ReadingProgress {
@@ -590,6 +646,17 @@ export const api = {
     request<Blob>(`/library/papers/${paperId}/pdf`, { responseType: "pdf", signal }),
   deleteLibraryPDF: (paperId: number) =>
     request<void>(`/library/papers/${paperId}/pdf`, { method: "DELETE" }),
+  getDocument: (documentId: number, signal?: AbortSignal) =>
+    request<DocumentMetadata>(`/documents/${documentId}`, { signal }),
+  getDocumentStatus: (documentId: number, signal?: AbortSignal) =>
+    request<DocumentStatus>(`/documents/${documentId}/status`, { signal }),
+  getDocumentPages: (documentId: number, page = 1, size = 10, signal?: AbortSignal) =>
+    request<DocumentPageResponse>(
+      `/documents/${documentId}/pages?${searchParams({ page, size })}`,
+      { signal },
+    ),
+  retryDocument: (documentId: number) =>
+    request<DocumentStatus>(`/documents/${documentId}/retry`, { method: "POST" }),
   searchResearch: (query: string, limit = 10) =>
     request<ResearchSearch>(`/research/search?${searchParams({ q: query, limit })}`, {
       authenticated: false,

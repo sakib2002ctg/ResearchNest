@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     CLAMAV_HOST: str | None = None
     CLAMAV_PORT: int = Field(3310, ge=1, le=65535)
     CLAMAV_TIMEOUT_SECONDS: float = Field(10.0, gt=0, le=60)
+    PGVECTOR_ENABLED: bool = False
+    DOCUMENT_WORKER_IN_API: bool = True
+    DOCUMENT_EMBEDDING_PROVIDER: Literal["hash", "sentence_transformers"] = "hash"
+    DOCUMENT_EMBEDDING_MODEL_PATH: Path | None = None
 
     @field_validator("CORS_ORIGINS")
     @classmethod

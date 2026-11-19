@@ -9,6 +9,7 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 
 from alembic import command
+from app.core.config import settings
 
 
 def migration_config(url=None):
@@ -18,11 +19,16 @@ def migration_config(url=None):
     return config
 
 
-def test_migration_chain_is_linear_and_generates_postgresql_ddl():
+@pytest.mark.parametrize("vector_enabled", [False, True])
+def test_migration_chain_is_linear_and_generates_postgresql_ddl(
+    monkeypatch, vector_enabled
+):
+    monkeypatch.setattr(settings, "PGVECTOR_ENABLED", vector_enabled)
     config = migration_config("postgresql://localhost/offline")
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["d429e3a5b6c1"]
+    assert script.get_heads() == ["e5a14c7b9d32"]
     assert [revision.revision for revision in script.walk_revisions()] == [
+        "e5a14c7b9d32",
         "d429e3a5b6c1",
         "c83a2f1a4d71",
         "b21c4b995d13",
@@ -49,6 +55,15 @@ def test_migration_chain_is_linear_and_generates_postgresql_ddl():
         "FOREIGN KEY(user_id, legacy_paper_id) "
         "REFERENCES research_papers (owner_id, id) ON DELETE CASCADE"
     ) in upgrade_sql
+    assert "CREATE TABLE document_pages" in upgrade_sql
+    assert "CREATE TABLE processing_jobs" in upgrade_sql
+    if settings.PGVECTOR_ENABLED:
+        assert "CREATE EXTENSION IF NOT EXISTS vector" in upgrade_sql
+        assert "vector_pg VECTOR(384)" in upgrade_sql
+        assert "USING hnsw (vector_pg vector_cosine_ops)" in upgrade_sql
+    else:
+        assert "vector_pg JSON" in upgrade_sql
+        assert "USING hnsw" not in upgrade_sql
 
     config.output_buffer = io.StringIO()
     command.downgrade(config, "head:base", sql=True)
@@ -97,6 +112,10 @@ def test_postgresql_migration_round_trip():
             "annotations",
             "documents",
             "pdf_deletions",
+            "document_pages",
+            "document_chunks",
+            "embeddings",
+            "processing_jobs",
         }
         assert {
             (
@@ -136,7 +155,7 @@ def test_postgresql_migration_round_trip():
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
-                == "d429e3a5b6c1"
+                == "e5a14c7b9d32"
             )
             user_id = connection.execute(
                 text(
@@ -167,7 +186,7 @@ def test_postgresql_migration_round_trip():
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
-                == "d429e3a5b6c1"
+                == "e5a14c7b9d32"
             )
             connection.execute(text("DELETE FROM pdf_deletions"))
 
@@ -222,7 +241,48 @@ def test_postgresql_migration_round_trip():
                 ),
                 {"canonical": canonical_id, "projection": discovery_projection_id},
             ).scalar_one()
+        command.upgrade(config, "d429e3a5b6c1")
+        with engine.begin() as connection:
+            phase04_document_id = connection.execute(
+                text(
+                    "INSERT INTO documents "
+                    "(user_id, user_paper_id, storage_key, original_filename, "
+                    "size_bytes, sha256, page_count) "
+                    "VALUES (42, :paper, 'private-key.pdf', 'source.pdf', 1234, "
+                    "'original-checksum', 2) RETURNING id"
+                ),
+                {"paper": discovery_link_id},
+            ).scalar_one()
         command.upgrade(config, "head")
+        with engine.begin() as connection:
+            assert connection.execute(
+                text(
+                    "SELECT sha256, status, version, page_count "
+                    "FROM documents WHERE id = :id"
+                ),
+                {"id": phase04_document_id},
+            ).one() == ("original-checksum", "pending", 1, 2)
+            assert connection.execute(
+                text(
+                    "SELECT user_id, document_version, status, attempts "
+                    "FROM processing_jobs WHERE document_id = :id"
+                ),
+                {"id": phase04_document_id},
+            ).one() == (42, 1, "queued", 0)
+            _verify_intelligence_tenant_constraints(connection, phase04_document_id)
+        with pytest.raises(RuntimeError, match="purge documents"):
+            command.downgrade(config, "d429e3a5b6c1")
+        with engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM documents WHERE id = :id"),
+                {"id": phase04_document_id},
+            )
+            assert (
+                connection.execute(
+                    text("SELECT count(*) FROM processing_jobs")
+                ).scalar_one()
+                == 0
+            )
         with engine.begin() as connection:
             assert connection.execute(
                 text(
@@ -357,3 +417,67 @@ def _verify_workspace_cascades(connection, discovery_link_id):
     assert (
         connection.execute(text("SELECT count(*) FROM collection_papers")).scalar() == 0
     )
+
+
+def _verify_intelligence_tenant_constraints(connection, document_id):
+    connection.execute(
+        text(
+            "INSERT INTO users (id, username, email, hashed_password) "
+            "VALUES (44, 'other-index-owner', 'index-owner@example.com', 'test')"
+        )
+    )
+    page_id = connection.execute(
+        text(
+            "INSERT INTO document_pages "
+            "(document_id, user_id, document_version, page_number, raw_text) "
+            "VALUES (:document, 42, 1, 1, 'Private page') RETURNING id"
+        ),
+        {"document": document_id},
+    ).scalar_one()
+    assert page_id > 0
+    chunk_id = connection.execute(
+        text(
+            "INSERT INTO document_chunks "
+            "(document_id, user_id, document_version, page_number, chunk_index, "
+            "content, token_count) "
+            "VALUES (:document, 42, 1, 1, 0, 'Private page', 2) RETURNING id"
+        ),
+        {"document": document_id},
+    ).scalar_one()
+    with pytest.raises(IntegrityError), connection.begin_nested():
+        connection.execute(
+            text(
+                "INSERT INTO document_chunks "
+                "(document_id, user_id, document_version, page_number, chunk_index, "
+                "content, token_count) "
+                "VALUES (:document, 44, 1, 1, 1, 'Blocked page', 2)"
+            ),
+            {"document": document_id},
+        )
+    with pytest.raises(IntegrityError), connection.begin_nested():
+        connection.execute(
+            text(
+                "INSERT INTO embeddings "
+                "(chunk_id, user_id, document_version, model_name, vector_json) "
+                "VALUES (:chunk, 44, 1, 'test', '[1.0, 0.0]')"
+            ),
+            {"chunk": chunk_id},
+        )
+    with pytest.raises(IntegrityError), connection.begin_nested():
+        connection.execute(
+            text(
+                "INSERT INTO processing_jobs "
+                "(document_id, user_id, document_version, status) "
+                "VALUES (:document, 44, 1, 'queued')"
+            ),
+            {"document": document_id},
+        )
+    with pytest.raises(IntegrityError), connection.begin_nested():
+        connection.execute(
+            text(
+                "INSERT INTO processing_jobs "
+                "(document_id, user_id, document_version, status) "
+                "VALUES (:document, 42, 1, 'queued')"
+            ),
+            {"document": document_id},
+        )
