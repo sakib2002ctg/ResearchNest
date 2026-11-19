@@ -55,9 +55,13 @@ function Workspace() {
   useEffect(() => {
     alive.current = true;
     let current = true;
-    Promise.all([api.getConversations(), api.getLibraryCollections(), api.getPreferences(), api.getAIUsage()])
-      .then(([conversations, folders, preferences, stats]) => {
-        if (current) { setChats(conversations); setCollections(folders); setPrefs(preferences); setUsage(stats); setReady(true); }
+    const requested = new URLSearchParams(window.location.search).get("conversation_id");
+    const linkedHistory = requested && /^[1-9]\d*$/.test(requested)
+      ? api.getConversation(Number(requested)).catch(() => { if (current) setError("Unable to open conversation / আলোচনা খোলা যায়নি।"); return null; })
+      : Promise.resolve(null);
+    Promise.all([api.getConversations(), api.getLibraryCollections(), api.getPreferences(), api.getAIUsage(), linkedHistory])
+      .then(([conversations, folders, preferences, stats, history]) => {
+        if (current) { setChats(conversations); setCollections(folders); setPrefs(preferences); setUsage(stats); setChat(history); setReady(true); }
       }).catch(() => { if (current) setError("Unable to load / লোড হয়নি।"); });
     const refresh = () => { api.getPreferences().then((preferences) => { if (current) setPrefs(preferences); }).catch(() => {}); };
     window.addEventListener("focus", refresh);

@@ -25,6 +25,7 @@ def conversation_data(row):
             "scope_type",
             "scope_paper_ids",
             "scope_collection_id",
+            "project_id",
             "language",
             "created_at",
             "updated_at",

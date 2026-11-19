@@ -28,6 +28,13 @@ class Conversation(Base):
     __table_args__ = (
         UniqueConstraint("id", "user_id", name="uq_conversations_id_owner"),
         ForeignKeyConstraint(
+            ["project_id", "user_id"],
+            ["research_projects.id", "research_projects.user_id"],
+            name="fk_conversations_project_owner",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        ForeignKeyConstraint(
             ["user_id", "scope_collection_id"],
             ["collections.user_id", "collections.id"],
             name="fk_conversations_collection_owner",
@@ -45,6 +52,14 @@ class Conversation(Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     title: Mapped[str] = mapped_column(String(200))
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "research_projects.id",
+            name="fk_conversations_project_id",
+            ondelete="SET NULL",
+        ),
+        index=True,
+    )
     scope_type: Mapped[str] = mapped_column(String(20))
     scope_paper_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
     scope_collection_id: Mapped[int | None] = mapped_column(

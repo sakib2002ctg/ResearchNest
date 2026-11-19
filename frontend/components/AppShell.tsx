@@ -15,8 +15,8 @@ const navigation = [
   { href: "/analysis", key: "analysis", icon: "analysis" },
   { href: "/writing", key: "writing", icon: "writing" },
   { href: "/citations", key: "citations", icon: "citations" },
-  { href: "/projects", key: "projects", icon: "projects", phase: "10" },
-  { href: "/insights", key: "insights", icon: "insights", phase: "10" },
+  { href: "/projects", key: "projects", icon: "projects" },
+  { href: "/insights", key: "insights", icon: "insights" },
   { href: "/learn", key: "learn", icon: "learn", phase: "11" },
   { href: "/settings", key: "settings", icon: "settings" },
 ] as const;

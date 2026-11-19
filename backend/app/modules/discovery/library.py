@@ -1,13 +1,88 @@
 import unicodedata
 
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.time import utc_now
 from app.models.paper import Author, Paper, PaperAuthor, PaperSource, UserPaper
 from app.models.research_paper import ResearchPaper
 from app.modules.discovery.gateway import normalize_doi
-from app.modules.discovery.schemas import DiscoveryPaper, SaveToLibraryResponse
+from app.modules.discovery.schemas import (
+    CitationLink,
+    DiscoveryPaper,
+    SaveToLibraryResponse,
+)
+
+
+def _provider_metadata(paper: DiscoveryPaper, previous: dict | None) -> dict:
+    """Allowlist public, bounded gateway-normalized metadata; never user state.
+
+    Providers sometimes omit citation fields on an ID-only refresh. An empty
+    response is not evidence that previously recorded links ceased to exist.
+    """
+    previous = previous if isinstance(previous, dict) else {}
+    links = [link.model_dump(mode="json") for link in paper.citation_links[:20]]
+    if not links:
+        old_links = previous.get("citation_links", [])
+        links = old_links[:20] if isinstance(old_links, list) else []
+    citations = []
+    seen = set()
+    for item in links:
+        if not isinstance(item, dict):
+            continue
+        try:
+            link = CitationLink.model_validate(
+                {
+                    key: item[key]
+                    for key in ("title", "doi", "url", "source")
+                    if key in item
+                }
+            )
+        except ValidationError:
+            continue
+        url = link.url
+        safe_url = (
+            str(url)
+            if url and not (url.username or url.password) and len(str(url)) <= 2048
+            else None
+        )
+        doi = normalize_doi(link.doi)
+        identity = doi or safe_url or link.title.casefold()
+        if identity in seen:
+            continue
+        seen.add(identity)
+        citations.append(
+            {
+                "title": link.title[:500],
+                "doi": doi,
+                "url": safe_url,
+                "source": link.source,
+            }
+        )
+    metadata = {
+        "metadata_version": 1,
+        "title": paper.title[:500],
+        "authors": [name[:255] for name in paper.authors[:100]],
+        "doi": normalize_doi(paper.doi),
+        "publication_date": (
+            paper.publication_date.isoformat() if paper.publication_date else None
+        ),
+        "publication_type": paper.paper_type[:64] if paper.paper_type else None,
+        "citation_count": paper.citation_count,
+        "citation_links": citations,
+        # Semantic Scholar's citations are works citing this paper, not its
+        # outgoing references. The graph deliberately uses cites_or_related.
+        "citation_direction": (
+            "incoming_cited_by" if paper.source == "semantic_scholar" else "unspecified"
+        ),
+    }
+    venue = previous.get("venue")
+    if isinstance(venue, str) and venue.strip():
+        metadata["venue"] = " ".join(venue.replace("\x00", "").split())[:500]
+    return metadata
+
 
 IDENTITY_CONSTRAINTS = {
     "ix_papers_doi",
@@ -43,11 +118,12 @@ def _canonical_paper(
     db: Session, paper: DiscoveryPaper, doi: str | None
 ) -> tuple[Paper, PaperSource | None]:
     source = None
-    if paper.external_id:
+    source_id = paper.external_id or doi
+    if source_id:
         source = db.scalar(
             select(PaperSource).where(
                 PaperSource.provider == paper.source,
-                PaperSource.external_id == paper.external_id,
+                PaperSource.external_id == source_id,
             )
         )
     doi_paper_id = None
@@ -95,15 +171,24 @@ def _save(
     db: Session, user_id: int, paper: DiscoveryPaper, doi: str | None
 ) -> SaveToLibraryResponse:
     canonical, source = _canonical_paper(db, paper, doi)
-    if source is None and paper.external_id:
-        db.add(
-            PaperSource(
-                paper_id=canonical.id,
-                provider=paper.source,
-                external_id=paper.external_id,
-                source_url=str(paper.url) if paper.url else None,
-            )
+    source_id = paper.external_id or doi
+    if source is None and source_id:
+        source = PaperSource(
+            paper_id=canonical.id,
+            provider=paper.source,
+            external_id=source_id,
+            source_url=str(paper.url) if paper.url else None,
         )
+        db.add(source)
+    elif source is not None:
+        # The canonical row lock serializes concurrent verified refreshes.
+        # Refresh the earlier identity lookup before preserving old links.
+        db.refresh(source)
+    if source is not None:
+        source.metadata_json = _provider_metadata(paper, source.metadata_json)
+        source.retrieved_at = utc_now()
+        if paper.url:
+            source.source_url = str(paper.url)
 
     user_paper_id = db.scalar(
         select(UserPaper.id).where(

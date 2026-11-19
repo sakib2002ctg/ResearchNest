@@ -17,6 +17,7 @@ from app.modules.ai.gateway import AIProviderGateway
 from app.modules.ai.router import router as conversations_router
 from app.modules.ai.router import usage_router
 from app.modules.analysis.router import router as analysis_router
+from app.modules.analytics.router import router as analytics_router
 from app.modules.citations.router import router as citations_router
 from app.modules.discovery.cache import SearchCache
 from app.modules.discovery.gateway import DiscoveryGateway
@@ -37,6 +38,7 @@ from app.modules.library.router import router as library_router
 from app.modules.multimodal.cleanup import run_asset_cleanup
 from app.modules.multimodal.processing import run_jobs as run_asset_jobs
 from app.modules.multimodal.router import router as multimodal_router
+from app.modules.projects.router import router as projects_router
 from app.modules.writing.router import router as writing_router
 from app.routers.auth import router as auth_router
 from app.routers.papers import router as papers_router
@@ -187,6 +189,8 @@ for router in (
     citations_router,
     writing_router,
     multimodal_router,
+    projects_router,
+    analytics_router,
 ):
     app.include_router(router, prefix="/api/v1")
 

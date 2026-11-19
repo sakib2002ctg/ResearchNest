@@ -1,13 +1,14 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import delete, select
 
 from app.models.assistant import Conversation
 from app.models.audit_log import AuditLog
 from app.models.library import Collection
+from app.models.projects import ResearchProject
 from app.modules.ai.gateway import AIProviderGateway
-from app.modules.ai.quota import usage_stats
+from app.modules.ai.quota import lock_owner, usage_stats
 from app.modules.ai.repository import conversation_data, conversation_for_owner, history
 from app.modules.ai.schemas import ID, ConversationCreate, Question
 from app.modules.ai.service import send_message
@@ -32,6 +33,18 @@ usage_router = APIRouter(
 
 @router.post("", status_code=201)
 async def create_conversation(body: ConversationCreate, owner: Owner, db: LibraryDB):
+    # Serialize association creation with owner-scoped project deletion.
+    await lock_owner(db, owner)
+    if (
+        body.project_id is not None
+        and await db.scalar(
+            select(ResearchProject.id).where(
+                ResearchProject.id == body.project_id, ResearchProject.user_id == owner
+            )
+        )
+        is None
+    ):
+        raise HTTPException(404, "Project not found.")
     row = Conversation(user_id=owner, **body.model_dump())
     # This also validates empty collections, and rejects mixed/foreign paper IDs.
     await scoped_papers(db, owner, row)

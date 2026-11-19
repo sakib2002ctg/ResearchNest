@@ -26,8 +26,9 @@ def test_migration_chain_is_linear_and_generates_postgresql_ddl(
     monkeypatch.setattr(settings, "PGVECTOR_ENABLED", vector_enabled)
     config = migration_config("postgresql://localhost/offline")
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["c9e30f7b521d"]
+    assert script.get_heads() == ["d0f14b8a632e"]
     assert [revision.revision for revision in script.walk_revisions()] == [
+        "d0f14b8a632e",
         "c9e30f7b521d",
         "b8d29e6a410c",
         "a7c14e5f902b",
@@ -135,6 +136,10 @@ def test_postgresql_migration_round_trip():
             "asset_chunk_links",
             "asset_extraction_jobs",
             "asset_deletions",
+            "research_projects",
+            "project_papers",
+            "research_notes",
+            "project_tasks",
         }
         assert {
             (
@@ -174,7 +179,7 @@ def test_postgresql_migration_round_trip():
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
-                == "c9e30f7b521d"
+                == "d0f14b8a632e"
             )
             user_id = connection.execute(
                 text(
@@ -205,7 +210,7 @@ def test_postgresql_migration_round_trip():
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
-                == "c9e30f7b521d"
+                == "d0f14b8a632e"
             )
             connection.execute(text("DELETE FROM pdf_deletions"))
 
@@ -272,8 +277,31 @@ def test_postgresql_migration_round_trip():
                 ),
                 {"paper": discovery_link_id},
             ).scalar_one()
+        # Upgrade an existing Phase 09 conversation without losing its scope.
+        command.upgrade(config, "c9e30f7b521d")
+        with engine.begin() as connection:
+            phase09_chat_id = connection.execute(
+                text(
+                    "INSERT INTO conversations "
+                    "(user_id,title,scope_type,scope_paper_ids) "
+                    "VALUES (42,'Existing chat','single_paper',CAST(:papers AS JSON)) "
+                    "RETURNING id"
+                ),
+                {"papers": f"[{discovery_link_id}]"},
+            ).scalar_one()
         command.upgrade(config, "head")
         with engine.begin() as connection:
+            assert connection.execute(
+                text(
+                    "SELECT title, project_id, scope_paper_ids "
+                    "FROM conversations WHERE id=:id"
+                ),
+                {"id": phase09_chat_id},
+            ).one() == ("Existing chat", None, [discovery_link_id])
+            connection.execute(
+                text("DELETE FROM conversations WHERE id=:id"),
+                {"id": phase09_chat_id},
+            )
             assert connection.execute(
                 text(
                     "SELECT sha256, status, version, page_count "

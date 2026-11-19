@@ -15,6 +15,7 @@ class ConversationCreate(BaseModel):
     scope_type: Literal["single_paper", "selected_papers", "collection"]
     scope_paper_ids: list[ID] = Field(default_factory=list, max_length=50)
     scope_collection_id: ID | None = None
+    project_id: ID | None = None
     language: Literal["en", "bn"] = "en"
 
     @model_validator(mode="after")

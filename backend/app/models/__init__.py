@@ -24,6 +24,7 @@ from app.models.multimodal import (
 )
 from app.models.paper import Author, Paper, PaperAuthor, PaperSource, UserPaper
 from app.models.profile import Profile
+from app.models.projects import ProjectPaper, ProjectTask, ResearchNote, ResearchProject
 from app.models.research_paper import ResearchPaper
 from app.models.session import Session
 from app.models.user import User
@@ -37,6 +38,10 @@ from app.models.writing import (
 )
 
 __all__ = [
+    "ProjectPaper",
+    "ProjectTask",
+    "ResearchNote",
+    "ResearchProject",
     "AssetChunkLink",
     "AssetDeletion",
     "AssetExtractionJob",

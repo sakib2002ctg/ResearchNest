@@ -1,6 +1,51 @@
 "use client";
 
 export type Language = "en" | "bn";
+export type ProjectStatus = "planning" | "active" | "review" | "completed" | "archived";
+export type TaskStatus = "todo" | "in_progress" | "done";
+export interface ProjectInput {
+  title: string; description: string | null; objectives: string[]; status: ProjectStatus;
+  target_deadline: string | null; collection_id: number | null;
+}
+export interface ResearchProject extends ProjectInput {
+  id: number; progress_percent: number; revision: number; created_at: string; updated_at: string;
+  paper_count: number; task_count: number; completed_task_count: number;
+}
+export interface ProjectPaper {
+  id: number; user_paper_id: number; role_in_project: string | null;
+  added_at: string; title: string; authors: string | null; reading_status: ReadingStatus;
+}
+export interface ProjectNoteInput { title: string; content: string; user_paper_id: number | null }
+export interface ResearchNote extends ProjectNoteInput { id: number; project_id: number; created_at: string; updated_at: string }
+export interface ProjectTaskInput { title: string; description: string | null; is_milestone: boolean; status: TaskStatus; due_date: string | null }
+export interface ProjectTask extends ProjectTaskInput { id: number; project_id: number; completed_at: string | null; created_at: string; updated_at: string }
+export interface ProjectDetail extends ResearchProject {
+  papers: ProjectPaper[]; notes: ResearchNote[]; tasks: ProjectTask[];
+  conversations: Pick<Conversation, "id" | "title" | "language" | "updated_at">[];
+}
+export type GraphOrigin = "verified_metadata" | "inferred_similarity";
+export interface GraphNode { id: string; type: "paper" | "author" | "topic" | "tag" | "project"; label: string; origin: GraphOrigin; provenance: string; user_paper_id?: number | null; project_id?: number | null }
+export interface GraphEdge { id: string; source: string; target: string; type: string; origin: GraphOrigin; provenance: string }
+export interface KnowledgeGraph { nodes: GraphNode[]; edges: GraphEdge[]; truncated: boolean; limits: { papers: number; nodes: number; edges: number }; project_id: number | null; project_scope?: { total_projects: number; included_projects: number; truncated: boolean } }
+export interface AnalyticsOverview {
+  totals: { saved_papers: number; indexed_papers: number; analyzed_papers: number; projects: number };
+  publication_years: { year: number; count: number; provenance: string }[];
+  unknown_publication_year_count: number;
+  reading_funnel: { status: ReadingStatus; count: number }[];
+  authors: { name: string; count: number }[];
+  coauthors: { source: string; target: string; count: number }[];
+  venues: { name: string; count: number; provenance: string }[];
+  sources: { name: string; count: number }[];
+  topics: { name: string; count: number; origin: GraphOrigin }[];
+  tags: { id: number; name: string; color: string | null; count: number }[];
+  coverage: { saved: number; indexed: number; analyzed: number; indexed_percent: number; analyzed_percent: number; analysis_freshness?: { checked_papers: number; unchecked_papers: number; truncated: boolean; paper_limit: number; chunk_limit: number; chunk_rows_budgeted: number } };
+  scope: { project_id: number | null; total_papers: number; included_papers: number; truncated: boolean };
+  project_scope?: { total_projects: number; included_projects: number; truncated: boolean };
+}
+export interface ResearchTimeline {
+  items: { id: string; type: string; title: string; occurred_at: string; user_paper_id?: number | null; project_id?: number | null; provenance: string }[];
+  truncated: boolean; limit: number; project_id: number | null;
+}
 export type Theme = "system" | "light" | "dark";
 export type Privacy = "private" | "public";
 
@@ -554,6 +599,26 @@ function searchParams(values: Record<string, string | number | undefined>): stri
 }
 
 export const api = {
+  getProjects: (limit = 50, offset = 0, signal?: AbortSignal) => request<ResearchProject[]>(`/projects?${searchParams({ limit, offset })}`, { signal }),
+  createProject: (body: ProjectInput) => request<ResearchProject>("/projects", { method: "POST", body }),
+  getProject: (id: number, signal?: AbortSignal) => request<ProjectDetail>(`/projects/${id}`, { signal }),
+  updateProject: (id: number, body: Partial<ProjectInput> & { expected_revision: number }) => request<ProjectDetail>(`/projects/${id}`, { method: "PUT", body }),
+  deleteProject: (id: number) => request<void>(`/projects/${id}`, { method: "DELETE" }),
+  addProjectPaper: (id: number, user_paper_id: number, role_in_project: string | null) => request<ProjectPaper>(`/projects/${id}/papers`, { method: "POST", body: { user_paper_id, role_in_project } }),
+  removeProjectPaper: (id: number, paperId: number) => request<void>(`/projects/${id}/papers/${paperId}`, { method: "DELETE" }),
+  getProjectNotes: (id: number) => request<ResearchNote[]>(`/projects/${id}/notes`),
+  createProjectNote: (id: number, body: ProjectNoteInput) => request<ResearchNote>(`/projects/${id}/notes`, { method: "POST", body }),
+  updateProjectNote: (id: number, noteId: number, body: Partial<ProjectNoteInput>) => request<ResearchNote>(`/projects/${id}/notes/${noteId}`, { method: "PUT", body }),
+  deleteProjectNote: (id: number, noteId: number) => request<void>(`/projects/${id}/notes/${noteId}`, { method: "DELETE" }),
+  getProjectTasks: (id: number) => request<ProjectTask[]>(`/projects/${id}/tasks`),
+  createProjectTask: (id: number, body: ProjectTaskInput) => request<ProjectTask>(`/projects/${id}/tasks`, { method: "POST", body }),
+  updateProjectTask: (id: number, taskId: number, body: Partial<ProjectTaskInput>) => request<ProjectTask>(`/projects/${id}/tasks/${taskId}`, { method: "PUT", body }),
+  deleteProjectTask: (id: number, taskId: number) => request<void>(`/projects/${id}/tasks/${taskId}`, { method: "DELETE" }),
+  linkProjectConversation: (id: number, conversationId: number) => request<Pick<Conversation, "id" | "title" | "language" | "created_at" | "updated_at">>(`/projects/${id}/conversations/${conversationId}`, { method: "POST" }),
+  exportProject: (id: number, format: "json" | "markdown") => request<Blob>(`/projects/${id}/export?${searchParams({ format })}`, { responseType: "download", expectedMime: format === "json" ? "application/json" : "text/markdown" }),
+  getAnalyticsOverview: (project_id?: number, signal?: AbortSignal) => request<AnalyticsOverview>(`/analytics/overview?${searchParams({ project_id })}`, { signal }),
+  getAnalyticsTimeline: (project_id?: number, signal?: AbortSignal) => request<ResearchTimeline>(`/analytics/timeline?${searchParams({ project_id })}`, { signal }),
+  getKnowledgeGraph: (project_id?: number, signal?: AbortSignal) => request<KnowledgeGraph>(`/analytics/knowledge-graph?${searchParams({ project_id })}`, { signal }),
   extractDocumentAssets: (documentId: number) => request<AssetExtraction>(`/multimodal/documents/${documentId}/extract`, { method: "POST" }),
   getDocumentAssets: (documentId: number, params: { asset_type?: DocumentAssetType; page_number?: number } = {}, signal?: AbortSignal) =>
     request<DocumentAssets>(`/multimodal/documents/${documentId}/assets?${searchParams(params)}`, { signal }),
@@ -722,9 +787,9 @@ export const api = {
 export type AIProvider = "auto" | "offline" | "local" | "cloud";
 export interface ConversationInput {
   title: string; scope_type: "single_paper" | "selected_papers" | "collection";
-  scope_paper_ids: number[]; scope_collection_id: number | null; language: Language;
+  scope_paper_ids: number[]; scope_collection_id: number | null; language: Language; project_id?: number | null;
 }
-export interface Conversation extends ConversationInput { id: number; created_at: string; updated_at: string }
+export interface Conversation extends ConversationInput { id: number; project_id: number | null; created_at: string; updated_at: string }
 export interface SourceCitation {
   id: number; user_paper_id: number; document_id: number | null; chunk_id: number | null;
   paper_title: string; page_number: number; section_heading: string | null;
