@@ -34,7 +34,7 @@ dev = [
     "pytest-cov",
 ]
 [tool.pytest.ini_options]
-testpaths = ["app/tests"]
+testpaths = ["tests"]
 addopts = [
     "--cov=app",
     "--cov-report=term-missing",

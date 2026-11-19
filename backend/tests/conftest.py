@@ -1,12 +1,17 @@
+from datetime import timedelta
+from uuid import uuid4
+
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.security import create_access_token, hash_password
+from app.core.time import utc_now
 from app.database.database import Base, get_db
 from app.main import app
+from app.models.session import Session as UserSession
 from app.models.user import User
 
 SQLALCHEMY_DATABASE_URL = "sqlite://"
@@ -24,6 +29,11 @@ TestingSessionLocal = sessionmaker(
 )
 
 
+@event.listens_for(engine, "connect")
+def enable_foreign_keys(connection, connection_record):
+    connection.execute("PRAGMA foreign_keys=ON")
+
+
 @pytest.fixture(scope="function")
 def db():
     Base.metadata.drop_all(bind=engine)
@@ -35,10 +45,14 @@ def db():
         yield session
     finally:
         session.close()
+        engine.dispose()
 
 
 @pytest.fixture(scope="function")
-def client(db):
+def client(db, monkeypatch):
+    # Lifespan checks must use the same isolated engine as request dependencies.
+    monkeypatch.setattr("app.main.engine", engine)
+
     def override_get_db():
         yield db
 
@@ -88,11 +102,20 @@ def test_user(db):
 
 
 @pytest.fixture(scope="function")
-def access_token(test_user):
+def access_token(db, test_user):
+    return issue_test_session(db, test_user)
+
+
+def issue_test_session(db, user):
+    session = UserSession(
+        user_id=user.id,
+        token_jti=str(uuid4()),
+        expires_at=utc_now() + timedelta(minutes=30),
+    )
+    db.add(session)
+    db.commit()
     return create_access_token(
-        data={
-            "sub": test_user.email,
-        }
+        {"sub": str(user.id), "sid": session.id, "jti": session.token_jti}
     )
 
 
@@ -139,12 +162,8 @@ def another_user(db):
 
 
 @pytest.fixture(scope="function")
-def another_access_token(another_user):
-    return create_access_token(
-        data={
-            "sub": another_user.email,
-        }
-    )
+def another_access_token(db, another_user):
+    return issue_test_session(db, another_user)
 
 
 @pytest.fixture(scope="function")

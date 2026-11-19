@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.core.logging import logger
@@ -10,6 +11,19 @@ from app.exceptions.custom_exceptions import (
 
 
 def register_exception_handlers(app: FastAPI):
+
+    @app.exception_handler(RequestValidationError)
+    async def request_validation_handler(request: Request, exc: RequestValidationError):
+        # Validation errors must not echo passwords or recovery credentials.
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": [
+                    {key: error[key] for key in ("type", "loc", "msg") if key in error}
+                    for error in exc.errors()
+                ]
+            },
+        )
 
     @app.exception_handler(PaperNotFoundException)
     async def paper_not_found_handler(

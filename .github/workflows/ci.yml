@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - "feat/**"
 
   pull_request:
     branches:
@@ -15,9 +16,27 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_DB: researchnest_migrations
+          POSTGRES_USER: researchnest
+          POSTGRES_PASSWORD: migration-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U researchnest -d researchnest_migrations"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
       APP_NAME: ResearchNest
-      DATABASE_URL: sqlite:///./test.db
+      DATABASE_URL: sqlite://
+      TEST_MIGRATION_DATABASE_URL: postgresql://researchnest:migration-test@127.0.0.1:5432/researchnest_migrations
+      TEST_IDENTITY_DATABASE_URL: postgresql://researchnest:migration-test@127.0.0.1:5432/researchnest_identity
+      PGVECTOR_ENABLED: "true"
       SECRET_KEY: test-secret-key
       DEBUG: "true"
       ALGORITHM: HS256
@@ -55,6 +74,20 @@ jobs:
       - name: Check Black formatting
         run: black --check .
 
+      - name: Validate Compose configuration
+        run: docker compose -f ../docker-compose.yml config --quiet
+
+      - name: Verify pgvector is available
+        run: >-
+          docker exec ${{ job.services.postgres.id }} psql -U researchnest
+          -d researchnest_migrations -v ON_ERROR_STOP=1
+          -c 'CREATE EXTENSION vector;'
+
+      - name: Create disposable identity test database
+        run: >-
+          docker exec ${{ job.services.postgres.id }} createdb -U researchnest
+          researchnest_identity
+
       - name: Run Tests with Coverage
         run: |
           pytest \
@@ -70,3 +103,23 @@ jobs:
           path: |
             backend/coverage.xml
             backend/htmlcov/
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_API_BASE_URL: https://api.invalid/api/v1

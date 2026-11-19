@@ -17,5 +17,9 @@ logging.basicConfig(
     ],
 )
 
+# Outbound URL logs can include search text and provider credentials.
+for outbound_logger in ("httpx", "httpcore"):
+    logging.getLogger(outbound_logger).setLevel(logging.WARNING)
+
 # Shared logger for the application
 logger = logging.getLogger("researchnest")

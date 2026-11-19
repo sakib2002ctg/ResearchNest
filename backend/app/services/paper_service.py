@@ -30,13 +30,15 @@ class PaperService:
         self,
         page: int,
         size: int,
+        owner_id: int,
     ):
         papers = self.repository.get_all_papers(
+            owner_id=owner_id,
             skip=(page - 1) * size,
             limit=size,
         )
 
-        total = self.repository.count_papers()
+        total = self.repository.count_papers(owner_id=owner_id)
         pages = ceil(total / size) if total > 0 else 0
 
         return PaginatedResearchPaperResponse(
@@ -52,14 +54,16 @@ class PaperService:
         query: str,
         page: int,
         size: int,
+        owner_id: int,
     ):
         papers = self.repository.search_papers(
             query=query,
+            owner_id=owner_id,
             skip=(page - 1) * size,
             limit=size,
         )
 
-        total = self.repository.count_search_results(query)
+        total = self.repository.count_search_results(query, owner_id=owner_id)
         pages = ceil(total / size) if total > 0 else 0
 
         return PaginatedResearchPaperResponse(
@@ -73,8 +77,9 @@ class PaperService:
     def get_paper_by_id(
         self,
         paper_id: int,
+        owner_id: int,
     ):
-        paper = self.repository.get_paper_by_id(paper_id)
+        paper = self.repository.get_paper_by_id(paper_id, owner_id=owner_id)
 
         if paper is None:
             raise PaperNotFoundException(paper_id)

@@ -33,11 +33,13 @@ def create_paper(
 def get_all_papers(
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
     service: PaperService = Depends(get_paper_service),
 ):
     return service.get_all_papers(
         page,
         size,
+        owner_id=current_user.id,
     )
 
 
@@ -47,21 +49,24 @@ def search_papers(
     q: str = Query(..., min_length=1),
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
     service: PaperService = Depends(get_paper_service),
 ):
     return service.search_papers(
         query=q,
         page=page,
         size=size,
+        owner_id=current_user.id,
     )
 
 
 @router.get("/{paper_id}", response_model=ResearchPaperResponse)
 def get_paper(
     paper_id: int,
+    current_user: User = Depends(get_current_user),
     service: PaperService = Depends(get_paper_service),
 ):
-    return service.get_paper_by_id(paper_id)
+    return service.get_paper_by_id(paper_id, owner_id=current_user.id)
 
 
 @router.put("/{paper_id}", response_model=ResearchPaperResponse)
@@ -71,7 +76,7 @@ def update_paper(
     current_user: User = Depends(get_current_user),
     service: PaperService = Depends(get_paper_service),
 ):
-    paper = service.get_paper_by_id(paper_id)
+    paper = service.get_paper_by_id(paper_id, owner_id=current_user.id)
 
     service.verify_paper_owner(
         paper,
@@ -90,7 +95,7 @@ def delete_paper(
     current_user: User = Depends(get_current_user),
     service: PaperService = Depends(get_paper_service),
 ):
-    paper = service.get_paper_by_id(paper_id)
+    paper = service.get_paper_by_id(paper_id, owner_id=current_user.id)
 
     service.verify_paper_owner(
         paper,
