@@ -1,0 +1,1 @@
+"""Private writing module tests."""

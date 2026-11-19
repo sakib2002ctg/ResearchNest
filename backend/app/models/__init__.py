@@ -23,8 +23,18 @@ from app.models.session import Session
 from app.models.user import User
 from app.models.user_preference import UserPreference
 from app.models.verification_token import VerificationToken
+from app.models.writing import (
+    Citation,
+    WritingCitation,
+    WritingDocument,
+    WritingVersion,
+)
 
 __all__ = [
+    "Citation",
+    "WritingCitation",
+    "WritingDocument",
+    "WritingVersion",
     "Analysis",
     "ComparisonPaper",
     "PaperComparison",

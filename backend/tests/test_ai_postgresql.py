@@ -15,17 +15,141 @@ from app.models.assistant import AIUsage, Conversation
 from app.models.library import Document
 from app.models.research_paper import ResearchPaper
 from app.models.user import User
+from app.models.writing import Citation, WritingVersion
 from app.modules.ai.gateway import AIProviderGateway, OfflineProvider
 from app.modules.ai.schemas import Question
 from app.modules.ai.service import send_message
 from app.modules.analysis import service as analysis_service
 from app.modules.analysis.schemas import CompareRequest, Options
+from app.modules.writing import service as writing_service
+from app.modules.writing.schemas import CreateDocument, UpdateDocument
 from tests import test_identity_postgresql
 from tests.modules.ai.test_assistant import indexed_paper
 from tests.modules.analysis.test_routes import paper
 from tests.test_migrations import migration_config
 
 identity_database = test_identity_postgresql.identity_database
+
+
+def test_postgresql_writing_concurrent_saves_ownership_and_safe_downgrade(
+    identity_database,
+):
+    from sqlalchemy.exc import IntegrityError
+
+    from alembic import command
+
+    with Session(identity_database) as db:
+        suffix = uuid4().hex
+        users = [
+            User(
+                username=f"writing-{suffix}-{n}",
+                email=f"writing-{suffix}-{n}@example.com",
+                hashed_password="test",
+            )
+            for n in range(2)
+        ]
+        db.add_all(users)
+        db.commit()
+        owner, foreign = users[0].id, users[1].id
+        item, _, _ = paper(db, owner)
+        paper_id = item.id
+
+    async def run():
+        engine = create_discovery_engine(identity_database.url)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        try:
+            async with factory() as db:
+                result = await writing_service.create(
+                    db,
+                    owner,
+                    CreateDocument(
+                        doc_type="thesis",
+                        title="Concurrent",
+                        content_markdown="Initial.",
+                    ),
+                )
+                did = result["id"]
+
+            async def save(text):
+                async with factory() as db:
+                    try:
+                        return await writing_service.update(
+                            db,
+                            owner,
+                            did,
+                            UpdateDocument(
+                                content_markdown=text,
+                                expected_revision=1,
+                                create_version=True,
+                            ),
+                        )
+                    except HTTPException as error:
+                        return error.status_code
+
+            results = await asyncio.gather(save("First save."), save("Second save."))
+            assert results.count(409) == 1
+            async with factory() as db:
+                versions = list(
+                    await db.scalars(
+                        select(WritingVersion.version_number)
+                        .where(
+                            WritingVersion.user_id == owner,
+                            WritingVersion.writing_document_id == did,
+                        )
+                        .order_by(WritingVersion.version_number)
+                    )
+                )
+                assert versions == [1, 2]
+            return did
+        finally:
+            await engine.dispose()
+
+    try:
+        did = asyncio.run(run())
+        config = migration_config(
+            identity_database.url.render_as_string(hide_password=False)
+        )
+        with pytest.raises(RuntimeError, match="purge writing"):
+            command.downgrade(config, "a7c14e5f902b")
+        with Session(identity_database) as db:
+            db.add(
+                WritingVersion(
+                    user_id=foreign,
+                    writing_document_id=did,
+                    version_number=99,
+                    title="Blocked",
+                    content_markdown="private",
+                    outline=[],
+                    cited_citation_ids=[],
+                )
+            )
+            with pytest.raises(IntegrityError):
+                db.commit()
+            db.rollback()
+            db.add(
+                Citation(
+                    user_id=foreign,
+                    user_paper_id=paper_id,
+                    cite_key="blocked",
+                    identity_key="a" * 64,
+                    title_year_key="b" * 64,
+                    title="Blocked",
+                    authors=[],
+                    entry_type="misc",
+                )
+            )
+            with pytest.raises(IntegrityError):
+                db.commit()
+            db.rollback()
+    finally:
+        with Session(identity_database) as db:
+            db.execute(
+                delete(ResearchPaper).where(
+                    ResearchPaper.owner_id.in_([owner, foreign])
+                )
+            )
+            db.execute(delete(User).where(User.id.in_([owner, foreign])))
+            db.commit()
 
 
 def test_postgresql_analysis_owner_constraints_source_deletion_and_downgrade(

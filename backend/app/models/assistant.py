@@ -167,7 +167,8 @@ class AIUsage(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "request_id", name="uq_ai_usage_owner_request"),
         CheckConstraint(
-            "feature IN ('rag_chat','summary','analysis')", name="ck_ai_usage_feature"
+            "feature IN ('rag_chat','summary','analysis','writing')",
+            name="ck_ai_usage_feature",
         ),
         CheckConstraint(
             "status IN ('pending','completed','failed')", name="ck_ai_usage_status"

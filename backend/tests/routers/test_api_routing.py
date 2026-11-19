@@ -94,6 +94,17 @@ def test_openapi_exposes_versioned_routes_and_hides_legacy_aliases(client):
         "/api/v1/analysis/compare",
         "/api/v1/analysis/comparisons",
         "/api/v1/analysis/comparisons/{comparison_id}",
+        "/api/v1/citations",
+        "/api/v1/citations/{citation_id}",
+        "/api/v1/citations/import",
+        "/api/v1/citations/export",
+        "/api/v1/citations/format",
+        "/api/v1/writing",
+        "/api/v1/writing/{doc_id}",
+        "/api/v1/writing/{doc_id}/versions",
+        "/api/v1/writing/{doc_id}/versions/{version_id}/restore",
+        "/api/v1/writing/{doc_id}/assist",
+        "/api/v1/writing/{doc_id}/export",
     }
     oauth_flow = schema["components"]["securitySchemes"]["OAuth2PasswordBearer"][
         "flows"

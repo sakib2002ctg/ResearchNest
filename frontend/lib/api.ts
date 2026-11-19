@@ -471,7 +471,8 @@ type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   authenticated?: boolean;
-  responseType?: "pdf";
+  responseType?: "pdf" | "download";
+  expectedMime?: string;
   signal?: AbortSignal;
 };
 
@@ -488,7 +489,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const timeout = globalThis.setTimeout(() => controller.abort(), 25_000);
   const multipart = typeof FormData !== "undefined" && options.body instanceof FormData;
   const requestHeaders: Record<string, string> = {
-    Accept: options.responseType === "pdf" ? "application/pdf" : "application/json",
+    Accept: options.responseType === "pdf" ? "application/pdf" : options.expectedMime ?? "application/json",
   };
   if (options.body !== undefined && !multipart) requestHeaders["Content-Type"] = "application/json";
   if (authenticated && requestToken) {
@@ -509,9 +510,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       redirect: "error",
     });
     if (response.status === 204) return undefined as T;
-    if (response.ok && options.responseType === "pdf") {
-      if (response.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase() !== "application/pdf") {
-        throw new ApiError("The service returned an invalid PDF response.", 502);
+    if (response.ok && options.responseType) {
+      const expected = options.responseType === "pdf" ? "application/pdf" : options.expectedMime;
+      if (!expected || response.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase() !== expected) {
+        throw new ApiError("The service returned an invalid file response.", 502);
       }
       return (await response.blob()) as T;
     }
@@ -552,6 +554,26 @@ function searchParams(values: Record<string, string | number | undefined>): stri
 }
 
 export const api = {
+  getCitations: (limit = 50, offset = 0, q?: string) => request<Citation[]>(`/citations?${searchParams({ limit, offset, q })}`),
+  createCitation: (body: CitationInput) => request<Citation>("/citations", { method: "POST", body }),
+  updateCitation: (id: number, body: CitationInput) => request<Citation>(`/citations/${id}`, { method: "PUT", body }),
+  deleteCitation: (id: number) => request<void>(`/citations/${id}`, { method: "DELETE" }),
+  importCitations: (format: ReferenceFormat, content: string) => request<CitationImportResult>("/citations/import", { method: "POST", body: { format, content } }),
+  formatCitations: (citation_ids: number[], style: CitationStyle) => request<FormattedReferences>("/citations/format", { method: "POST", body: { citation_ids, style } }),
+  exportCitations: (format: ReferenceFormat, ids: number[] = []) => {
+    const params = new URLSearchParams({ format });
+    ids.forEach((id) => params.append("citation_ids", String(id)));
+    return request<Blob>(`/citations/export?${params}`, { responseType: "download", expectedMime: format === "bibtex" ? "application/x-bibtex" : "application/x-research-info-systems" });
+  },
+  getWritingDocuments: (limit = 30, offset = 0) => request<WritingDocument[]>(`/writing?${searchParams({ limit, offset })}`),
+  createWritingDocument: (body: WritingCreate) => request<WritingDocument>("/writing", { method: "POST", body }),
+  getWritingDocument: (id: number) => request<WritingDocument>(`/writing/${id}`),
+  updateWritingDocument: (id: number, body: WritingUpdate) => request<WritingDocument>(`/writing/${id}`, { method: "PUT", body }),
+  deleteWritingDocument: (id: number) => request<void>(`/writing/${id}`, { method: "DELETE" }),
+  getWritingVersions: (id: number) => request<WritingVersion[]>(`/writing/${id}/versions`),
+  restoreWritingVersion: (id: number, version: number, expected_revision: number) => request<WritingDocument>(`/writing/${id}/versions/${version}/restore`, { method: "POST", body: { expected_revision } }),
+  assistWriting: (id: number, body: WritingAssistInput) => request<WritingSuggestion>(`/writing/${id}/assist`, { method: "POST", body }),
+  exportWriting: (id: number, format: WritingExportFormat, style: CitationStyle) => request<Blob>(`/writing/${id}/export?${searchParams({ format, style })}`, { responseType: "download", expectedMime: writingMimeTypes[format] }),
   analyzePaper: (id: number, body: AnalysisOptions) => request<PaperAnalysis>(`/analysis/${id}`, { method: "POST", body }),
   getPaperAnalysis: (id: number, language: Language) => request<PaperAnalysis>(`/analysis/${id}?${searchParams({ language })}`),
   getPaperAnalyses: (limit = 30, offset = 0) => request<PaperAnalysis[]>(`/analysis?${searchParams({ limit, offset })}`),
@@ -755,3 +777,57 @@ export interface AnalysisOptions {
 export interface PaperComparisonInput {
   user_paper_ids: number[]; title: string; language: Language; provider: AIProvider; request_id: string;
 }
+
+export type CitationStyle = "apa" | "ieee" | "mla" | "chicago" | "harvard";
+export type ReferenceFormat = "bibtex" | "ris";
+export type CitationEntryType = "article" | "inproceedings" | "book" | "misc" | "preprint";
+export interface CitationInput {
+  user_paper_id?: number | null; cite_key?: string; entry_type?: CitationEntryType;
+  title?: string; authors?: string[]; year?: number | null; venue?: string | null;
+  volume?: string | null; issue?: string | null; pages?: string | null;
+  doi?: string | null; url?: string | null; publisher?: string | null;
+}
+export interface Citation {
+  id: number; user_paper_id: number | null; cite_key: string; entry_type: CitationEntryType;
+  title: string; authors: string[]; year: number | null; venue: string | null;
+  volume: string | null; issue: string | null; pages: string | null; doi: string | null;
+  url: string | null; publisher: string | null; is_verified: boolean;
+  created_at: string; updated_at: string; warnings: string[];
+}
+export interface CitationImportResult { items: Citation[]; created: number; duplicates: number; warnings: string[] }
+export interface FormattedReferences {
+  style: CitationStyle; entries: Array<{ citation_id: number; cite_key: string; in_text: string; bibliography: string; is_verified: boolean }>;
+  bibliography: string[]; warnings: string[];
+}
+export type WritingType = "research_paper" | "research_proposal" | "thesis" | "literature_review";
+export interface WritingDraft {
+  title: string; doc_type: WritingType; language: Language; outline: string[];
+  content_markdown: string; cited_citation_ids: number[];
+}
+export type WritingCreate = Partial<WritingDraft> & Pick<WritingDraft, "title" | "doc_type" | "language">;
+export type WritingUpdate = Partial<WritingDraft> & { expected_revision: number; create_version?: boolean; change_summary?: string };
+export interface WritingDocument extends WritingDraft {
+  id: number; revision: number; word_count: number; ai_suggestions_log: WritingSuggestion[];
+  created_at: string; updated_at: string;
+}
+export interface WritingVersion {
+  id: number; writing_document_id: number; version_number: number; title: string;
+  content_markdown: string; change_summary: string | null; created_at: string;
+}
+export type WritingAction = "draft_section" | "tone" | "grammar" | "paraphrase";
+export type WritingSection = "abstract" | "introduction" | "literature_review" | "methodology" | "results_discussion";
+export interface WritingAssistInput {
+  action: WritingAction; section: WritingSection; text?: string; user_paper_ids: number[];
+  provider: AIProvider; request_id: string;
+}
+export interface WritingSuggestion {
+  id: string; kind: "ai_generated_suggestion"; action: WritingAction; section: WritingSection;
+  content_markdown: string; evidence_links: AnalysisEvidence[]; provider_used: string;
+  model_used: string; created_at: string;
+  citation_ids: number[];
+}
+export type WritingExportFormat = "md" | "tex" | "docx" | "pdf";
+const writingMimeTypes: Record<WritingExportFormat, string> = {
+  md: "text/markdown", tex: "application/x-tex",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", pdf: "application/pdf",
+};
