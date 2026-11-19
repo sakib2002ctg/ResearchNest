@@ -552,6 +552,12 @@ function searchParams(values: Record<string, string | number | undefined>): stri
 }
 
 export const api = {
+  analyzePaper: (id: number, body: AnalysisOptions) => request<PaperAnalysis>(`/analysis/${id}`, { method: "POST", body }),
+  getPaperAnalysis: (id: number, language: Language) => request<PaperAnalysis>(`/analysis/${id}?${searchParams({ language })}`),
+  getPaperAnalyses: (limit = 30, offset = 0) => request<PaperAnalysis[]>(`/analysis?${searchParams({ limit, offset })}`),
+  comparePapers: (body: PaperComparisonInput) => request<PaperComparison>("/analysis/compare", { method: "POST", body }),
+  getPaperComparisons: (limit = 30, offset = 0) => request<PaperComparison[]>(`/analysis/comparisons?${searchParams({ limit, offset })}`),
+  getPaperComparison: (id: number) => request<PaperComparison>(`/analysis/comparisons/${id}`),
   getConversations: (limit = 50, offset = 0) => request<Conversation[]>(`/conversations?${searchParams({ limit, offset })}`),
   createConversation: (body: ConversationInput) => request<Conversation>("/conversations", { method: "POST", body }),
   getConversation: (id: number) => request<ConversationHistory>(`/conversations/${id}`),
@@ -710,4 +716,42 @@ export interface AIQuotaWindow {
 export interface AIUsageStats {
   hourly: AIQuotaWindow; daily: AIQuotaWindow; active_requests: number;
   max_concurrent_requests: number; window_type: "rolling";
+}
+
+export type AnalysisField = "abstract_summary" | "research_problem" | "research_objectives" | "methodology" | "datasets" | "models_and_algorithms" | "evaluation_metrics" | "key_results" | "contributions" | "limitations" | "future_work" | "strengths" | "weaknesses";
+export type FieldStatus = "supported" | "partial_interpretation" | "not_specified";
+export interface AnalysisEvidence {
+  field: string; user_paper_id: number; chunk_id: number; document_id: number;
+  document_version: number; paper_title: string; page_number: number;
+  section_heading: string | null; quoted_snippet: string;
+}
+export interface ExtractionFields {
+  abstract_summary: string; research_problem: string; research_objectives: string[];
+  methodology: string; datasets: string[]; models_and_algorithms: string[];
+  evaluation_metrics: string[]; key_results: string; contributions: string[];
+  limitations: string[]; future_work: string[]; strengths: string[]; weaknesses: string[];
+  field_statuses: Record<AnalysisField, FieldStatus>; evidence_links: AnalysisEvidence[];
+}
+export interface PaperAnalysis extends ExtractionFields {
+  id: number; user_paper_id: number; document_id: number | null; document_version: number;
+  language: Language; status: "completed" | "failed"; is_stale: boolean;
+  error_message: string | null; provider_used: string; model_used: string;
+  created_at: string; updated_at: string;
+}
+export interface ComparisonColumn extends ExtractionFields { user_paper_id: number; paper_title: string }
+export interface ResearchGap {
+  title: string; description: string; scope: "selected_papers_only";
+  evidence_status: "partial_interpretation"; evidence_links: AnalysisEvidence[];
+}
+export interface PaperComparison {
+  id: number; title: string; user_paper_ids: number[]; language: Language;
+  comparison_matrix: ComparisonColumn[]; literature_synthesis: string; research_gaps: ResearchGap[];
+  evidence_links: AnalysisEvidence[]; provider_used: string; model_used: string;
+  created_at: string; is_stale: boolean;
+}
+export interface AnalysisOptions {
+  language: Language; force_refresh: boolean; provider: AIProvider; request_id: string;
+}
+export interface PaperComparisonInput {
+  user_paper_ids: number[]; title: string; language: Language; provider: AIProvider; request_id: string;
 }

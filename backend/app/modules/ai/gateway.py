@@ -1,7 +1,7 @@
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import Literal
+from typing import Callable, Literal
 
 import httpx
 from fastapi import HTTPException
@@ -27,6 +27,15 @@ class Generation(BaseModel):
 @dataclass
 class ProviderResult:
     generation: Generation
+    provider: str
+    model: str
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+
+
+@dataclass
+class StructuredResult:
+    payload: BaseModel
     provider: str
     model: str
     prompt_tokens: int | None = None
@@ -89,6 +98,28 @@ class HTTPProvider:
     async def generate(
         self, messages: list[dict], passages: list[dict]
     ) -> ProviderResult:
+        content, prompt, completion = await self._complete(
+            messages, settings.AI_MAX_COMPLETION_TOKENS
+        )
+        generation = Generation.model_validate_json(content)
+        for question in generation.follow_up_questions:
+            if len(question) > 200:
+                raise ValueError("Oversized follow-up.")
+        return ProviderResult(generation, self.name, self.model, prompt, completion)
+
+    async def generate_structured(self, messages, passages, schema):
+        content, prompt, completion = await self._complete(
+            messages, settings.ANALYSIS_MAX_COMPLETION_TOKENS
+        )
+        return StructuredResult(
+            schema.model_validate_json(content),
+            self.name,
+            self.model,
+            prompt,
+            completion,
+        )
+
+    async def _complete(self, messages, max_tokens):
         ollama = self.protocol == "ollama"
         payload = {"model": self.model, "messages": messages, "stream": False}
         if ollama:
@@ -96,13 +127,13 @@ class HTTPProvider:
                 format="json",
                 options={
                     "temperature": 0,
-                    "num_predict": settings.AI_MAX_COMPLETION_TOKENS,
+                    "num_predict": max_tokens,
                 },
             )
         else:
             payload.update(
                 temperature=0,
-                max_tokens=settings.AI_MAX_COMPLETION_TOKENS,
+                max_tokens=max_tokens,
                 response_format={"type": "json_object"},
             )
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
@@ -127,19 +158,15 @@ class HTTPProvider:
             if ollama
             else data["choices"][0]["message"]["content"]
         )
-        generation = Generation.model_validate_json(content)
-        for question in generation.follow_up_questions:
-            if len(question) > 200:
-                raise ValueError("Oversized follow-up.")
         usage = data if ollama else data.get("usage", {})
         prompt = usage.get("prompt_eval_count" if ollama else "prompt_tokens")
         completion = usage.get("eval_count" if ollama else "completion_tokens")
         if any(
-            v is not None and (type(v) is not int or v < 0)
+            v is not None and (type(v) is not int or not 0 <= v <= 1000000)
             for v in (prompt, completion)
         ):
             raise ValueError("Invalid usage.")
-        return ProviderResult(generation, self.name, self.model, prompt, completion)
+        return content, prompt, completion
 
 
 class AIProviderGateway:
@@ -192,3 +219,35 @@ class AIProviderGateway:
         ):
             # A fallback never switches to cloud. No provider response/body is logged.
             return await self.offline.generate(messages, passages)
+
+    async def generate_structured(
+        self,
+        provider,
+        messages: list[dict],
+        passages: list[dict],
+        schema: type[BaseModel],
+        offline_factory: Callable[[], BaseModel],
+    ) -> StructuredResult:
+        if provider is not self.offline:
+            try:
+                async with asyncio.timeout(8):
+                    result = await provider.generate_structured(
+                        messages, passages, schema
+                    )
+                    # Validate even custom adapters through the requested contract.
+                    result.payload = schema.model_validate(result.payload.model_dump())
+                    return result
+            except (
+                httpx.HTTPError,
+                TimeoutError,
+                ValueError,
+                KeyError,
+                IndexError,
+                TypeError,
+            ):
+                pass
+        return StructuredResult(
+            schema.model_validate(offline_factory().model_dump()),
+            self.offline.name,
+            self.offline.model,
+        )

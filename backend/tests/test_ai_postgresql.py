@@ -10,17 +10,118 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.orm import Session
 
 from app.database.discovery_database import create_discovery_engine
+from app.models.analysis import Analysis, ComparisonPaper
 from app.models.assistant import AIUsage, Conversation
+from app.models.library import Document
 from app.models.research_paper import ResearchPaper
 from app.models.user import User
 from app.modules.ai.gateway import AIProviderGateway, OfflineProvider
 from app.modules.ai.schemas import Question
 from app.modules.ai.service import send_message
+from app.modules.analysis import service as analysis_service
+from app.modules.analysis.schemas import CompareRequest, Options
 from tests import test_identity_postgresql
 from tests.modules.ai.test_assistant import indexed_paper
+from tests.modules.analysis.test_routes import paper
 from tests.test_migrations import migration_config
 
 identity_database = test_identity_postgresql.identity_database
+
+
+def test_postgresql_analysis_owner_constraints_source_deletion_and_downgrade(
+    identity_database,
+):
+    from sqlalchemy.exc import IntegrityError
+
+    from alembic import command
+
+    with Session(identity_database) as db:
+        suffix = uuid4().hex
+        users = [
+            User(
+                username=f"analysis-{suffix}-{n}",
+                email=f"analysis-{suffix}-{n}@example.com",
+                hashed_password="test",
+            )
+            for n in range(2)
+        ]
+        db.add_all(users)
+        db.commit()
+        owner, foreign = users[0].id, users[1].id
+        first, document, _ = paper(db, owner)
+        second, _, _ = paper(db, owner)
+        other, foreign_doc, _ = paper(db, foreign)
+        paper_ids = [first.id, second.id]
+        doc_id, foreign_doc_id, other_id = document.id, foreign_doc.id, other.id
+
+    async def run():
+        engine = create_discovery_engine(identity_database.url)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        gateway = AIProviderGateway()
+        try:
+            async with factory() as db:
+                result = await analysis_service.analyze(
+                    db, owner, paper_ids[0], Options(provider="offline"), gateway
+                )
+                assert result["status"] == "completed" and result["is_stale"] is False
+            async with factory() as db:
+                comparison = await analysis_service.compare(
+                    db,
+                    owner,
+                    CompareRequest(user_paper_ids=paper_ids, provider="offline"),
+                    gateway,
+                )
+                assert len(comparison["research_gaps"]) == 1
+                return result["id"], comparison["id"]
+        finally:
+            await engine.dispose()
+
+    try:
+        analysis_id, comparison_id = asyncio.run(run())
+        config = migration_config(
+            identity_database.url.render_as_string(hide_password=False)
+        )
+        with pytest.raises(RuntimeError, match="purge paper intelligence"):
+            command.downgrade(config, "f6b92d04a173")
+        with Session(identity_database) as db:
+            db.add(
+                ComparisonPaper(
+                    user_id=owner, comparison_id=comparison_id, user_paper_id=other_id
+                )
+            )
+            with pytest.raises(IntegrityError):
+                db.commit()
+            db.rollback()
+            analysis = db.scalar(
+                select(Analysis).where(
+                    Analysis.id == analysis_id, Analysis.user_id == owner
+                )
+            )
+            analysis.document_id = foreign_doc_id
+            with pytest.raises(IntegrityError):
+                db.commit()
+            db.rollback()
+            db.execute(
+                delete(Document).where(Document.id == doc_id, Document.user_id == owner)
+            )
+            db.commit()
+            assert (
+                db.scalar(
+                    select(Analysis.document_id).where(
+                        Analysis.id == analysis_id, Analysis.user_id == owner
+                    )
+                )
+                is None
+            )
+    finally:
+        with Session(identity_database) as db:
+            db.execute(
+                delete(ResearchPaper).where(
+                    ResearchPaper.owner_id.in_([owner, foreign])
+                )
+            )
+            db.execute(delete(User).where(User.id.in_([owner, foreign])))
+            db.commit()
 
 
 @pytest.mark.parametrize("same_request", [False, True])

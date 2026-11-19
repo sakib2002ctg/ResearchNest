@@ -16,6 +16,7 @@ from app.middleware.logging import LoggingMiddleware
 from app.modules.ai.gateway import AIProviderGateway
 from app.modules.ai.router import router as conversations_router
 from app.modules.ai.router import usage_router
+from app.modules.analysis.router import router as analysis_router
 from app.modules.discovery.cache import SearchCache
 from app.modules.discovery.gateway import DiscoveryGateway
 from app.modules.discovery.providers import (
@@ -163,6 +164,7 @@ for router in (
     documents_router,
     conversations_router,
     usage_router,
+    analysis_router,
 ):
     app.include_router(router, prefix="/api/v1")
 

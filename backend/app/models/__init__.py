@@ -1,3 +1,4 @@
+from app.models.analysis import Analysis, ComparisonPaper, PaperComparison
 from app.models.assistant import AIUsage, Conversation, Message, MessageCitation
 from app.models.audit_log import AuditLog
 from app.models.document_intelligence import (
@@ -24,6 +25,9 @@ from app.models.user_preference import UserPreference
 from app.models.verification_token import VerificationToken
 
 __all__ = [
+    "Analysis",
+    "ComparisonPaper",
+    "PaperComparison",
     "AIUsage",
     "Conversation",
     "Message",

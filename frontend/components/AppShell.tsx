@@ -12,7 +12,7 @@ const navigation = [
   { href: "/discover", key: "discover", icon: "search" },
   { href: "/library", key: "library", icon: "library" },
   { href: "/assistant", key: "assistant", icon: "assistant" },
-  { href: "/analysis", key: "analysis", icon: "analysis", phase: "07" },
+  { href: "/analysis", key: "analysis", icon: "analysis" },
   { href: "/writing", key: "writing", icon: "writing", phase: "08" },
   { href: "/citations", key: "citations", icon: "citations", phase: "08" },
   { href: "/projects", key: "projects", icon: "projects", phase: "10" },

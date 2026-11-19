@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     AI_MAX_CONCURRENT_REQUESTS: int = Field(1, ge=1, le=5)
     AI_MAX_COMPLETION_TOKENS: int = Field(800, ge=64, le=2048)
     AI_MIN_RELEVANCE: float = Field(0.18, ge=0.05, le=1)
+    ANALYSIS_MAX_COMPLETION_TOKENS: int = Field(4096, ge=512, le=8192)
 
     @field_validator("OLLAMA_BASE_URL", "CLOUD_AI_BASE_URL")
     @classmethod
