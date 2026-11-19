@@ -552,6 +552,12 @@ function searchParams(values: Record<string, string | number | undefined>): stri
 }
 
 export const api = {
+  getConversations: (limit = 50, offset = 0) => request<Conversation[]>(`/conversations?${searchParams({ limit, offset })}`),
+  createConversation: (body: ConversationInput) => request<Conversation>("/conversations", { method: "POST", body }),
+  getConversation: (id: number) => request<ConversationHistory>(`/conversations/${id}`),
+  deleteConversation: (id: number) => request<void>(`/conversations/${id}`, { method: "DELETE" }),
+  sendAssistantMessage: (id: number, body: AssistantQuestion) => request<AssistantMessage>(`/conversations/${id}/messages`, { method: "POST", body }),
+  getAIUsage: () => request<AIUsageStats>("/ai/usage"),
   getMe: () => request<User>("/users/me"),
   login: (values: { email: string; password: string }) =>
     request<Token>("/auth/login", { method: "POST", body: values, authenticated: false }),
@@ -677,3 +683,31 @@ export const api = {
       body: { source, external_id, doi },
     }),
 };
+
+export type AIProvider = "auto" | "offline" | "local" | "cloud";
+export interface ConversationInput {
+  title: string; scope_type: "single_paper" | "selected_papers" | "collection";
+  scope_paper_ids: number[]; scope_collection_id: number | null; language: Language;
+}
+export interface Conversation extends ConversationInput { id: number; created_at: string; updated_at: string }
+export interface SourceCitation {
+  id: number; user_paper_id: number; document_id: number | null; chunk_id: number | null;
+  paper_title: string; page_number: number; section_heading: string | null;
+  quoted_snippet: string; relevance_score: number;
+}
+export interface AssistantMessage {
+  id: number; role: "user" | "assistant"; content: string;
+  evidence_status: "supported" | "partial_interpretation" | "insufficient_evidence";
+  interpretation: string; missing_information: string; follow_up_questions: string[];
+  citations: SourceCitation[]; model_used: string | null; provider_used: string | null; created_at: string;
+}
+export interface ConversationHistory extends Conversation { messages: AssistantMessage[] }
+export interface AssistantQuestion { content: string; provider: AIProvider; request_id: string }
+export interface AIQuotaWindow {
+  requests: number; tokens: number; request_limit: number; token_limit: number;
+  remaining_requests: number; remaining_tokens: number;
+}
+export interface AIUsageStats {
+  hourly: AIQuotaWindow; daily: AIQuotaWindow; active_requests: number;
+  max_concurrent_requests: number; window_type: "rolling";
+}

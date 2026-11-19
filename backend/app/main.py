@@ -13,6 +13,9 @@ from app.database.database import engine
 from app.database.discovery_database import create_discovery_engine
 from app.exceptions.handlers import register_exception_handlers
 from app.middleware.logging import LoggingMiddleware
+from app.modules.ai.gateway import AIProviderGateway
+from app.modules.ai.router import router as conversations_router
+from app.modules.ai.router import usage_router
 from app.modules.discovery.cache import SearchCache
 from app.modules.discovery.gateway import DiscoveryGateway
 from app.modules.discovery.providers import (
@@ -41,6 +44,7 @@ async def lifespan(app: FastAPI):
     app.state.discovery_session_factory = async_sessionmaker(
         discovery_engine, expire_on_commit=False
     )
+    app.state.ai_gateway = AIProviderGateway()
     try:
         # Test database connection
         with engine.connect() as connection:
@@ -157,6 +161,8 @@ for router in (
     discovery_router,
     library_router,
     documents_router,
+    conversations_router,
+    usage_router,
 ):
     app.include_router(router, prefix="/api/v1")
 

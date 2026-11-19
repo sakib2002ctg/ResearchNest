@@ -33,6 +33,8 @@ jobs:
 
     env:
       APP_NAME: ResearchNest
+      APP_ENV: test
+      AI_DEFAULT_PROVIDER: offline
       DATABASE_URL: sqlite://
       TEST_MIGRATION_DATABASE_URL: postgresql://researchnest:migration-test@127.0.0.1:5432/researchnest_migrations
       TEST_IDENTITY_DATABASE_URL: postgresql://researchnest:migration-test@127.0.0.1:5432/researchnest_identity

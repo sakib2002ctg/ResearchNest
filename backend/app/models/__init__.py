@@ -1,3 +1,4 @@
+from app.models.assistant import AIUsage, Conversation, Message, MessageCitation
 from app.models.audit_log import AuditLog
 from app.models.document_intelligence import (
     DocumentChunk,
@@ -23,6 +24,10 @@ from app.models.user_preference import UserPreference
 from app.models.verification_token import VerificationToken
 
 __all__ = [
+    "AIUsage",
+    "Conversation",
+    "Message",
+    "MessageCitation",
     "Annotation",
     "AuditLog",
     "Author",

@@ -45,6 +45,35 @@ class Settings(BaseSettings):
     DOCUMENT_WORKER_IN_API: bool = True
     DOCUMENT_EMBEDDING_PROVIDER: Literal["hash", "sentence_transformers"] = "hash"
     DOCUMENT_EMBEDDING_MODEL_PATH: Path | None = None
+    AI_DEFAULT_PROVIDER: Literal["offline", "local", "cloud", "auto"] = "offline"
+    OLLAMA_BASE_URL: str = "http://127.0.0.1:11434"
+    OLLAMA_MODEL: str = "llama3.2"
+    LOCAL_AI_PROTOCOL: Literal["ollama", "openai"] = "ollama"
+    CLOUD_AI_BASE_URL: str = "https://api.openai.com/v1"
+    CLOUD_AI_API_KEY: SecretStr | None = None
+    CLOUD_AI_MODEL: str = "gpt-4.1-mini"
+    AI_HOURLY_REQUEST_LIMIT: int = Field(20, ge=1)
+    AI_DAILY_REQUEST_LIMIT: int = Field(100, ge=1)
+    AI_HOURLY_TOKEN_LIMIT: int = Field(100000, ge=1)
+    AI_DAILY_TOKEN_LIMIT: int = Field(200000, ge=1)
+    AI_MAX_CONCURRENT_REQUESTS: int = Field(1, ge=1, le=5)
+    AI_MAX_COMPLETION_TOKENS: int = Field(800, ge=64, le=2048)
+    AI_MIN_RELEVANCE: float = Field(0.18, ge=0.05, le=1)
+
+    @field_validator("OLLAMA_BASE_URL", "CLOUD_AI_BASE_URL")
+    @classmethod
+    def validate_ai_endpoint(cls, value: str) -> str:
+        parts = urlsplit(value)
+        if (
+            parts.scheme not in {"http", "https"}
+            or not parts.hostname
+            or parts.username
+            or parts.password
+            or parts.query
+            or parts.fragment
+        ):
+            raise ValueError("AI endpoints must be explicit HTTP(S) server URLs.")
+        return value.rstrip("/")
 
     @field_validator("CORS_ORIGINS")
     @classmethod

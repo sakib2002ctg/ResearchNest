@@ -11,7 +11,7 @@ const navigation = [
   { href: "/dashboard", key: "dashboard", icon: "dashboard" },
   { href: "/discover", key: "discover", icon: "search" },
   { href: "/library", key: "library", icon: "library" },
-  { href: "/assistant", key: "assistant", icon: "assistant", phase: "06" },
+  { href: "/assistant", key: "assistant", icon: "assistant" },
   { href: "/analysis", key: "analysis", icon: "analysis", phase: "07" },
   { href: "/writing", key: "writing", icon: "writing", phase: "08" },
   { href: "/citations", key: "citations", icon: "citations", phase: "08" },

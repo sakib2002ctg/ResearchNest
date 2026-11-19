@@ -85,6 +85,10 @@ def test_openapi_exposes_versioned_routes_and_hides_legacy_aliases(client):
         "/api/v1/documents/{document_id}/status",
         "/api/v1/documents/{document_id}/pages",
         "/api/v1/documents/{document_id}/retry",
+        "/api/v1/conversations",
+        "/api/v1/conversations/{conversation_id}",
+        "/api/v1/conversations/{conversation_id}/messages",
+        "/api/v1/ai/usage",
     }
     oauth_flow = schema["components"]["securitySchemes"]["OAuth2PasswordBearer"][
         "flows"
