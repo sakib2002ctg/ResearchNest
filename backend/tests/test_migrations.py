@@ -26,8 +26,9 @@ def test_migration_chain_is_linear_and_generates_postgresql_ddl(
     monkeypatch.setattr(settings, "PGVECTOR_ENABLED", vector_enabled)
     config = migration_config("postgresql://localhost/offline")
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["d0f14b8a632e"]
+    assert script.get_heads() == ["e1c25d9b743f"]
     assert [revision.revision for revision in script.walk_revisions()] == [
+        "e1c25d9b743f",
         "d0f14b8a632e",
         "c9e30f7b521d",
         "b8d29e6a410c",
@@ -62,6 +63,10 @@ def test_migration_chain_is_linear_and_generates_postgresql_ddl(
     ) in upgrade_sql
     assert "CREATE TABLE document_pages" in upgrade_sql
     assert "CREATE TABLE processing_jobs" in upgrade_sql
+    assert "CREATE TABLE learning_progress" in upgrade_sql
+    assert "CREATE TABLE team_workspaces" in upgrade_sql
+    assert "CREATE UNIQUE INDEX uq_team_members_one_owner" in upgrade_sql
+    assert "'education'" in upgrade_sql
     if settings.PGVECTOR_ENABLED:
         assert "CREATE EXTENSION IF NOT EXISTS vector" in upgrade_sql
         assert "vector_pg VECTOR(384)" in upgrade_sql
@@ -140,6 +145,11 @@ def test_postgresql_migration_round_trip():
             "project_papers",
             "research_notes",
             "project_tasks",
+            "learning_progress",
+            "team_workspaces",
+            "team_members",
+            "team_shared_collections",
+            "team_notes",
         }
         assert {
             (
@@ -179,7 +189,7 @@ def test_postgresql_migration_round_trip():
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
-                == "d0f14b8a632e"
+                == "e1c25d9b743f"
             )
             user_id = connection.execute(
                 text(
@@ -210,7 +220,7 @@ def test_postgresql_migration_round_trip():
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
-                == "d0f14b8a632e"
+                == "e1c25d9b743f"
             )
             connection.execute(text("DELETE FROM pdf_deletions"))
 
@@ -289,8 +299,36 @@ def test_postgresql_migration_round_trip():
                 ),
                 {"papers": f"[{discovery_link_id}]"},
             ).scalar_one()
+        command.upgrade(config, "d0f14b8a632e")
+        with engine.begin() as connection:
+            phase10_project_id = connection.execute(
+                text(
+                    "INSERT INTO research_projects (user_id,title,objectives) "
+                    "VALUES (42,'Existing workspace','[\"Preserved objective\"]') "
+                    "RETURNING id"
+                )
+            ).scalar_one()
+            phase10_task_id = connection.execute(
+                text(
+                    "INSERT INTO project_tasks (user_id,project_id,title) "
+                    "VALUES (42,:project,'Preserved task') RETURNING id"
+                ),
+                {"project": phase10_project_id},
+            ).scalar_one()
         command.upgrade(config, "head")
         with engine.begin() as connection:
+            assert connection.execute(
+                text("SELECT title,objectives FROM research_projects WHERE id=:id"),
+                {"id": phase10_project_id},
+            ).one() == ("Existing workspace", ["Preserved objective"])
+            assert connection.execute(
+                text("SELECT title,status FROM project_tasks WHERE id=:id"),
+                {"id": phase10_task_id},
+            ).one() == ("Preserved task", "todo")
+            connection.execute(
+                text("DELETE FROM research_projects WHERE id=:id"),
+                {"id": phase10_project_id},
+            )
             assert connection.execute(
                 text(
                     "SELECT title, project_id, scope_paper_ids "

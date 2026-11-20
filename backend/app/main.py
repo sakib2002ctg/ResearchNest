@@ -33,12 +33,14 @@ from app.modules.documents.processing import DocumentProcessor
 from app.modules.documents.providers import embedding_provider
 from app.modules.documents.queue import DocumentDispatcher
 from app.modules.documents.router import router as documents_router
+from app.modules.education.router import router as education_router
 from app.modules.library.cleanup import run_pdf_cleanup
 from app.modules.library.router import router as library_router
 from app.modules.multimodal.cleanup import run_asset_cleanup
 from app.modules.multimodal.processing import run_jobs as run_asset_jobs
 from app.modules.multimodal.router import router as multimodal_router
 from app.modules.projects.router import router as projects_router
+from app.modules.teams.router import router as teams_router
 from app.modules.writing.router import router as writing_router
 from app.routers.auth import router as auth_router
 from app.routers.papers import router as papers_router
@@ -191,6 +193,8 @@ for router in (
     multimodal_router,
     projects_router,
     analytics_router,
+    education_router,
+    teams_router,
 ):
     app.include_router(router, prefix="/api/v1")
 

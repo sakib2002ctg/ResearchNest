@@ -17,7 +17,8 @@ const navigation = [
   { href: "/citations", key: "citations", icon: "citations" },
   { href: "/projects", key: "projects", icon: "projects" },
   { href: "/insights", key: "insights", icon: "insights" },
-  { href: "/learn", key: "learn", icon: "learn", phase: "11" },
+  { href: "/learn", key: "learn", icon: "learn" },
+  { href: "/teams", key: "teams", icon: "teams" },
   { href: "/settings", key: "settings", icon: "settings" },
 ] as const;
 
@@ -90,7 +91,6 @@ export function AppShell({ children, title, description, showHeading = false }: 
               aria-current={pathname === item.href ? "page" : undefined}
               onClick={() => setMenuOpen(false)}>
               <Icon name={item.icon} size={19} /><span>{t(`nav.${item.key}`)}</span>
-              {"phase" in item && <span className="nav-phase" title={pick(`Preview · Phase ${item.phase}`, `প্রিভিউ · ধাপ ${item.phase}`)}>{item.phase}</span>}
             </Link>
           ))}
         </nav>

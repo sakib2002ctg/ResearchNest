@@ -124,6 +124,19 @@ def test_openapi_exposes_versioned_routes_and_hides_legacy_aliases(client):
         "/api/v1/analytics/overview",
         "/api/v1/analytics/timeline",
         "/api/v1/analytics/knowledge-graph",
+        "/api/v1/education/guides",
+        "/api/v1/education/guides/{slug}",
+        "/api/v1/education/guides/{slug}/progress",
+        "/api/v1/education/glossary",
+        "/api/v1/education/explain-paper/{user_paper_id}",
+        "/api/v1/teams",
+        "/api/v1/teams/{workspace_id}",
+        "/api/v1/teams/{workspace_id}/members",
+        "/api/v1/teams/{workspace_id}/members/{member_user_id}",
+        "/api/v1/teams/{workspace_id}/collections",
+        "/api/v1/teams/{workspace_id}/collections/{collection_id}",
+        "/api/v1/teams/{workspace_id}/notes",
+        "/api/v1/teams/{workspace_id}/notes/{note_id}",
     }
     oauth_flow = schema["components"]["securitySchemes"]["OAuth2PasswordBearer"][
         "flows"
@@ -137,6 +150,8 @@ def test_openapi_exposes_versioned_routes_and_hides_legacy_aliases(client):
                 "/api/v1/documents",
                 "/api/v1/projects",
                 "/api/v1/analytics",
+                "/api/v1/education",
+                "/api/v1/teams",
             )
         ):
             for operation in operations.values():

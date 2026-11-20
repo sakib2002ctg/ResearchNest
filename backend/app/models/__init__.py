@@ -7,6 +7,7 @@ from app.models.document_intelligence import (
     Embedding,
     ProcessingJob,
 )
+from app.models.education import LearningProgress
 from app.models.library import (
     Annotation,
     Collection,
@@ -27,6 +28,7 @@ from app.models.profile import Profile
 from app.models.projects import ProjectPaper, ProjectTask, ResearchNote, ResearchProject
 from app.models.research_paper import ResearchPaper
 from app.models.session import Session
+from app.models.teams import TeamMember, TeamNote, TeamSharedCollection, TeamWorkspace
 from app.models.user import User
 from app.models.user_preference import UserPreference
 from app.models.verification_token import VerificationToken
@@ -38,6 +40,11 @@ from app.models.writing import (
 )
 
 __all__ = [
+    "LearningProgress",
+    "TeamMember",
+    "TeamNote",
+    "TeamSharedCollection",
+    "TeamWorkspace",
     "ProjectPaper",
     "ProjectTask",
     "ResearchNote",

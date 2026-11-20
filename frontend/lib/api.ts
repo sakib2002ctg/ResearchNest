@@ -1,6 +1,56 @@
 "use client";
 
 export type Language = "en" | "bn";
+export interface BilingualText { en: string; bn: string }
+export interface LearningProgress {
+  completed_step_ids: string[]; is_completed: boolean; updated_at: string | null; percent: number;
+}
+export interface LearningGuide {
+  slug: string; title: BilingualText; summary: BilingualText; category: string; estimated_minutes: number;
+  steps: { id: string; title: BilingualText; description: BilingualText; checklist: BilingualText[]; module_path: string }[];
+  sources: { title: string; url: string }[]; progress: LearningProgress;
+}
+export interface GlossaryEntry {
+  slug: string; term: BilingualText; definition: BilingualText; example: BilingualText; category: string;
+}
+export interface GlossaryResult { items: GlossaryEntry[]; categories: string[] }
+export interface EducationExplainOptions { language: Language; provider: AIProvider; request_id: string }
+export interface BeginnerExplanation {
+  user_paper_id: number; language: Language; title: string;
+  supported_evidence: { chunk_id: number; document_id: number; document_version: number; page_number: number; paper_title: string; quoted_snippet: string }[];
+  beginner_explanation: string; missing_information: string; follow_up_questions: string[];
+  provider_used: string; model_used: string; evidence_status: "supported" | "partial_interpretation" | "insufficient_evidence";
+  plain_language_interpretation: { focus: "question" | "method" | "findings" | "limitations"; explanation: string; evidence_status: "partial_interpretation"; evidence: BeginnerExplanation["supported_evidence"] }[];
+  mode_notice: string; term_explanations: { term: string; definition: string }[];
+  response_kind: "beginner_guide_with_source_quotes";
+}
+export type TeamRole = "owner" | "editor" | "viewer";
+export type CollaboratorRole = Exclude<TeamRole, "owner">;
+export interface TeamWorkspaceInput { name: string; description: string | null }
+export interface TeamWorkspace extends TeamWorkspaceInput {
+  id: number; owner_id: number; my_role: TeamRole; member_count: number;
+  shared_collection_count: number; note_count: number; created_at: string; updated_at: string;
+}
+export interface TeamMember {
+  user_id: number; username: string; role: TeamRole; invited_by_id: number | null; joined_at: string;
+}
+export interface SharedTeamPaper {
+  user_paper_id: number; title: string; authors: string | null; source: string | null;
+  url: string | null; doi: string | null;
+}
+export interface TeamCollection {
+  id: number; collection_id: number; name: string; description: string | null;
+  shared_by_id: number; shared_at: string; papers: SharedTeamPaper[]; total_papers?: number; papers_truncated?: boolean;
+}
+export interface TeamNoteInput { title: string; content: string; user_paper_id?: number | null }
+export interface TeamNote extends TeamNoteInput {
+  id: number; workspace_id: number; author_id: number; author_username: string;
+  created_at: string; updated_at: string;
+}
+export interface TeamDetail extends TeamWorkspace {
+  members: TeamMember[]; collections: TeamCollection[]; notes: TeamNote[];
+  members_truncated?: boolean; collections_truncated?: boolean; notes_truncated?: boolean;
+}
 export type ProjectStatus = "planning" | "active" | "review" | "completed" | "archived";
 export type TaskStatus = "todo" | "in_progress" | "done";
 export interface ProjectInput {
@@ -599,6 +649,25 @@ function searchParams(values: Record<string, string | number | undefined>): stri
 }
 
 export const api = {
+  getLearningGuides: (signal?: AbortSignal) => request<LearningGuide[]>("/education/guides", { signal }),
+  getLearningGuide: (slug: string, signal?: AbortSignal) => request<LearningGuide>(`/education/guides/${encodeURIComponent(slug)}`, { signal }),
+  updateLearningProgress: (slug: string, completed_step_ids: string[], signal?: AbortSignal) => request<LearningProgress>(`/education/guides/${encodeURIComponent(slug)}/progress`, { method: "POST", body: { completed_step_ids }, signal }),
+  getGlossary: (q = "", category = "", signal?: AbortSignal) => request<GlossaryResult>(`/education/glossary?${searchParams({ q, category: category || undefined })}`, { signal }),
+  explainPaperForBeginners: (paperId: number, body: EducationExplainOptions, signal?: AbortSignal) => request<BeginnerExplanation>(`/education/explain-paper/${paperId}`, { method: "POST", body, signal }),
+  getTeams: (limit = 30, offset = 0, signal?: AbortSignal) => request<TeamWorkspace[]>(`/teams?${searchParams({ limit, offset })}`, { signal }),
+  createTeam: (body: TeamWorkspaceInput, signal?: AbortSignal) => request<TeamDetail>("/teams", { method: "POST", body, signal }),
+  getTeam: (id: number, signal?: AbortSignal) => request<TeamDetail>(`/teams/${id}`, { signal }),
+  updateTeam: (id: number, body: Partial<TeamWorkspaceInput>, signal?: AbortSignal) => request<TeamDetail>(`/teams/${id}`, { method: "PUT", body, signal }),
+  deleteTeam: (id: number, signal?: AbortSignal) => request<void>(`/teams/${id}`, { method: "DELETE", signal }),
+  addTeamMember: (id: number, identifier: string, role: CollaboratorRole, signal?: AbortSignal) => request<TeamMember>(`/teams/${id}/members`, { method: "POST", body: { identifier, role }, signal }),
+  updateTeamMember: (id: number, memberId: number, role: CollaboratorRole, signal?: AbortSignal) => request<TeamMember>(`/teams/${id}/members/${memberId}`, { method: "PUT", body: { role }, signal }),
+  removeTeamMember: (id: number, memberId: number, signal?: AbortSignal) => request<void>(`/teams/${id}/members/${memberId}`, { method: "DELETE", signal }),
+  shareTeamCollection: (id: number, collection_id: number, signal?: AbortSignal) => request<TeamCollection>(`/teams/${id}/collections`, { method: "POST", body: { collection_id }, signal }),
+  unshareTeamCollection: (id: number, collectionId: number, signal?: AbortSignal) => request<void>(`/teams/${id}/collections/${collectionId}`, { method: "DELETE", signal }),
+  getTeamNotes: (id: number, limit = 100, offset = 0, signal?: AbortSignal) => request<TeamNote[]>(`/teams/${id}/notes?${searchParams({ limit, offset })}`, { signal }),
+  createTeamNote: (id: number, body: TeamNoteInput, signal?: AbortSignal) => request<TeamNote>(`/teams/${id}/notes`, { method: "POST", body, signal }),
+  updateTeamNote: (id: number, noteId: number, body: Partial<TeamNoteInput>, signal?: AbortSignal) => request<TeamNote>(`/teams/${id}/notes/${noteId}`, { method: "PUT", body, signal }),
+  deleteTeamNote: (id: number, noteId: number, signal?: AbortSignal) => request<void>(`/teams/${id}/notes/${noteId}`, { method: "DELETE", signal }),
   getProjects: (limit = 50, offset = 0, signal?: AbortSignal) => request<ResearchProject[]>(`/projects?${searchParams({ limit, offset })}`, { signal }),
   createProject: (body: ProjectInput) => request<ResearchProject>("/projects", { method: "POST", body }),
   getProject: (id: number, signal?: AbortSignal) => request<ProjectDetail>(`/projects/${id}`, { signal }),
@@ -657,7 +726,7 @@ export const api = {
   getConversation: (id: number) => request<ConversationHistory>(`/conversations/${id}`),
   deleteConversation: (id: number) => request<void>(`/conversations/${id}`, { method: "DELETE" }),
   sendAssistantMessage: (id: number, body: AssistantQuestion) => request<AssistantMessage>(`/conversations/${id}/messages`, { method: "POST", body }),
-  getAIUsage: () => request<AIUsageStats>("/ai/usage"),
+  getAIUsage: (signal?: AbortSignal) => request<AIUsageStats>("/ai/usage", { signal }),
   getMe: () => request<User>("/users/me"),
   login: (values: { email: string; password: string }) =>
     request<Token>("/auth/login", { method: "POST", body: values, authenticated: false }),
@@ -693,7 +762,7 @@ export const api = {
   getProfile: () => request<Profile>("/users/me/profile"),
   updateProfile: (values: Partial<ProfileInput>) =>
     request<Profile>("/users/me/profile", { method: "PUT", body: values }),
-  getPreferences: () => request<Preferences>("/users/me/preferences"),
+  getPreferences: (signal?: AbortSignal) => request<Preferences>("/users/me/preferences", { signal }),
   updatePreferences: (values: Partial<PreferenceInput>) =>
     request<Preferences>("/users/me/preferences", { method: "PUT", body: values }),
   getSessions: () => request<SessionInfo[]>("/users/me/sessions"),
@@ -711,11 +780,11 @@ export const api = {
   updatePaper: (id: number, values: Partial<PaperInput>) =>
     request<Paper>(`/papers/${id}`, { method: "PUT", body: values }),
   deletePaper: (id: number) => request<StatusMessage>(`/papers/${id}`, { method: "DELETE" }),
-  getLibrary: (params: { q?: string; collection_id?: number; tag_id?: number; page: number; size: number }) =>
-    request<LibraryPage>(`/library/papers?${searchParams(params)}`),
+  getLibrary: (params: { q?: string; collection_id?: number; tag_id?: number; page: number; size: number }, signal?: AbortSignal) =>
+    request<LibraryPage>(`/library/papers?${searchParams(params)}`, { signal }),
   setReadingProgress: (paperId: number, body: ReadingProgress) =>
     request<ReadingProgress & { id: number }>(`/library/papers/${paperId}/progress`, { method: "PATCH", body }),
-  getLibraryCollections: () => request<LibraryCollection[]>("/library/collections"),
+  getLibraryCollections: (signal?: AbortSignal) => request<LibraryCollection[]>("/library/collections", { signal }),
   getLibraryCollection: (id: number) => request<LibraryCollection>(`/library/collections/${id}`),
   createLibraryCollection: (body: LibraryCollectionInput) =>
     request<LibraryCollection>("/library/collections", { method: "POST", body }),
