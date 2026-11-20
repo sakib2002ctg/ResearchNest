@@ -26,8 +26,15 @@ def test_migration_chain_is_linear_and_generates_postgresql_ddl(
     monkeypatch.setattr(settings, "PGVECTOR_ENABLED", vector_enabled)
     config = migration_config("postgresql://localhost/offline")
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["e5a14c7b9d32"]
+    assert script.get_heads() == ["f2d36e0c854a"]
     assert [revision.revision for revision in script.walk_revisions()] == [
+        "f2d36e0c854a",
+        "e1c25d9b743f",
+        "d0f14b8a632e",
+        "c9e30f7b521d",
+        "b8d29e6a410c",
+        "a7c14e5f902b",
+        "f6b92d04a173",
         "e5a14c7b9d32",
         "d429e3a5b6c1",
         "c83a2f1a4d71",
@@ -57,6 +64,10 @@ def test_migration_chain_is_linear_and_generates_postgresql_ddl(
     ) in upgrade_sql
     assert "CREATE TABLE document_pages" in upgrade_sql
     assert "CREATE TABLE processing_jobs" in upgrade_sql
+    assert "CREATE TABLE learning_progress" in upgrade_sql
+    assert "CREATE TABLE team_workspaces" in upgrade_sql
+    assert "CREATE UNIQUE INDEX uq_team_members_one_owner" in upgrade_sql
+    assert "'education'" in upgrade_sql
     if settings.PGVECTOR_ENABLED:
         assert "CREATE EXTENSION IF NOT EXISTS vector" in upgrade_sql
         assert "vector_pg VECTOR(384)" in upgrade_sql
@@ -116,6 +127,30 @@ def test_postgresql_migration_round_trip():
             "document_chunks",
             "embeddings",
             "processing_jobs",
+            "conversations",
+            "messages",
+            "message_citations",
+            "ai_usage",
+            "analyses",
+            "paper_comparisons",
+            "comparison_papers",
+            "citations",
+            "writing_documents",
+            "writing_versions",
+            "writing_citations",
+            "document_assets",
+            "asset_chunk_links",
+            "asset_extraction_jobs",
+            "asset_deletions",
+            "research_projects",
+            "project_papers",
+            "research_notes",
+            "project_tasks",
+            "learning_progress",
+            "team_workspaces",
+            "team_members",
+            "team_shared_collections",
+            "team_notes",
         }
         assert {
             (
@@ -155,7 +190,7 @@ def test_postgresql_migration_round_trip():
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
-                == "e5a14c7b9d32"
+                == "f2d36e0c854a"
             )
             user_id = connection.execute(
                 text(
@@ -186,7 +221,7 @@ def test_postgresql_migration_round_trip():
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
-                == "e5a14c7b9d32"
+                == "f2d36e0c854a"
             )
             connection.execute(text("DELETE FROM pdf_deletions"))
 
@@ -253,8 +288,59 @@ def test_postgresql_migration_round_trip():
                 ),
                 {"paper": discovery_link_id},
             ).scalar_one()
+        # Upgrade an existing Phase 09 conversation without losing its scope.
+        command.upgrade(config, "c9e30f7b521d")
+        with engine.begin() as connection:
+            phase09_chat_id = connection.execute(
+                text(
+                    "INSERT INTO conversations "
+                    "(user_id,title,scope_type,scope_paper_ids) "
+                    "VALUES (42,'Existing chat','single_paper',CAST(:papers AS JSON)) "
+                    "RETURNING id"
+                ),
+                {"papers": f"[{discovery_link_id}]"},
+            ).scalar_one()
+        command.upgrade(config, "d0f14b8a632e")
+        with engine.begin() as connection:
+            phase10_project_id = connection.execute(
+                text(
+                    "INSERT INTO research_projects (user_id,title,objectives) "
+                    "VALUES (42,'Existing workspace','[\"Preserved objective\"]') "
+                    "RETURNING id"
+                )
+            ).scalar_one()
+            phase10_task_id = connection.execute(
+                text(
+                    "INSERT INTO project_tasks (user_id,project_id,title) "
+                    "VALUES (42,:project,'Preserved task') RETURNING id"
+                ),
+                {"project": phase10_project_id},
+            ).scalar_one()
         command.upgrade(config, "head")
         with engine.begin() as connection:
+            assert connection.execute(
+                text("SELECT title,objectives FROM research_projects WHERE id=:id"),
+                {"id": phase10_project_id},
+            ).one() == ("Existing workspace", ["Preserved objective"])
+            assert connection.execute(
+                text("SELECT title,status FROM project_tasks WHERE id=:id"),
+                {"id": phase10_task_id},
+            ).one() == ("Preserved task", "todo")
+            connection.execute(
+                text("DELETE FROM research_projects WHERE id=:id"),
+                {"id": phase10_project_id},
+            )
+            assert connection.execute(
+                text(
+                    "SELECT title, project_id, scope_paper_ids "
+                    "FROM conversations WHERE id=:id"
+                ),
+                {"id": phase09_chat_id},
+            ).one() == ("Existing chat", None, [discovery_link_id])
+            connection.execute(
+                text("DELETE FROM conversations WHERE id=:id"),
+                {"id": phase09_chat_id},
+            )
             assert connection.execute(
                 text(
                     "SELECT sha256, status, version, page_count "
@@ -308,6 +394,12 @@ def test_postgresql_migration_round_trip():
             assert (
                 connection.execute(
                     text("SELECT is_verified FROM users WHERE id = 42")
+                ).scalar_one()
+                is False
+            )
+            assert (
+                connection.execute(
+                    text("SELECT is_admin FROM users WHERE id = 42")
                 ).scalar_one()
                 is False
             )
@@ -444,6 +536,7 @@ def _verify_intelligence_tenant_constraints(connection, document_id):
         ),
         {"document": document_id},
     ).scalar_one()
+    _verify_assistant_constraints(connection, document_id, chunk_id)
     with pytest.raises(IntegrityError), connection.begin_nested():
         connection.execute(
             text(
@@ -481,3 +574,108 @@ def _verify_intelligence_tenant_constraints(connection, document_id):
             ),
             {"document": document_id},
         )
+
+
+def _verify_assistant_constraints(connection, document_id, chunk_id):
+    """Real PostgreSQL validates composite ACL keys and SET NULL snapshot behavior."""
+    with connection.begin_nested() as savepoint:
+        connection.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+        paper_id = connection.execute(
+            text("SELECT user_paper_id FROM documents WHERE id=:id"),
+            {"id": document_id},
+        ).scalar_one()
+        collection = connection.execute(
+            text(
+                "INSERT INTO collections (user_id,name) "
+                "VALUES (42,'AI scope') RETURNING id"
+            )
+        ).scalar_one()
+        conversation = connection.execute(
+            text(
+                "INSERT INTO conversations "
+                "(user_id,title,scope_type,scope_paper_ids,scope_collection_id) "
+                "VALUES (42,'Private chat','collection','[]',:collection) RETURNING id"
+            ),
+            {"collection": collection},
+        ).scalar_one()
+        message_values = {
+            "conversation": conversation,
+            "request": "migration-citation-test",
+        }
+        message_sql = (
+            "INSERT INTO messages (user_id,conversation_id,request_id,"
+            "role,content,evidence_status,follow_up_questions) "
+            "VALUES (:owner,:conversation,:request,'assistant',"
+            "'Private page','supported','[]') RETURNING id"
+        )
+        message = connection.execute(
+            text(message_sql), {**message_values, "owner": 42}
+        ).scalar_one()
+        with pytest.raises(IntegrityError), connection.begin_nested():
+            connection.execute(text(message_sql), {**message_values, "owner": 44})
+        citation_sql = (
+            "INSERT INTO message_citations (user_id,message_id,"
+            "user_paper_id,document_id,chunk_id,paper_title,page_number,"
+            "quoted_snippet,relevance_score) VALUES (:owner,:message,"
+            ":paper,:document,:chunk,'Exact title',1,'Private page',0.8) "
+            "RETURNING id"
+        )
+        params = {
+            "owner": 42,
+            "message": message,
+            "paper": paper_id,
+            "document": document_id,
+            "chunk": chunk_id,
+        }
+        citation = connection.execute(text(citation_sql), params).scalar_one()
+        with pytest.raises(IntegrityError), connection.begin_nested():
+            connection.execute(text(citation_sql), {**params, "owner": 44})
+        # SET NULL actions must run before composite owner checks at commit.
+        connection.execute(text("SET CONSTRAINTS ALL DEFERRED"))
+        connection.execute(
+            text("DELETE FROM document_chunks WHERE id=:id"), {"id": chunk_id}
+        )
+        assert connection.execute(
+            text(
+                "SELECT chunk_id, quoted_snippet " "FROM message_citations WHERE id=:id"
+            ),
+            {"id": citation},
+        ).one() == (None, "Private page")
+        connection.execute(
+            text("DELETE FROM documents WHERE id=:id"), {"id": document_id}
+        )
+        assert (
+            connection.execute(
+                text("SELECT document_id " "FROM message_citations WHERE id=:id"),
+                {"id": citation},
+            ).scalar_one()
+            is None
+        )
+        connection.execute(
+            text("DELETE FROM collections WHERE id=:id"), {"id": collection}
+        )
+        assert (
+            connection.execute(
+                text("SELECT scope_collection_id " "FROM conversations WHERE id=:id"),
+                {"id": conversation},
+            ).scalar_one()
+            is None
+        )
+        connection.execute(
+            text("DELETE FROM conversations WHERE id=:id"), {"id": conversation}
+        )
+        assert (
+            connection.execute(
+                text("SELECT count(*) FROM messages WHERE id=:id"), {"id": message}
+            ).scalar_one()
+            == 0
+        )
+        assert (
+            connection.execute(
+                text("SELECT count(*) FROM message_citations " "WHERE id=:id"),
+                {"id": citation},
+            ).scalar_one()
+            == 0
+        )
+        connection.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+        savepoint.rollback()

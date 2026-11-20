@@ -1,3 +1,5 @@
+from app.models.analysis import Analysis, ComparisonPaper, PaperComparison
+from app.models.assistant import AIUsage, Conversation, Message, MessageCitation
 from app.models.audit_log import AuditLog
 from app.models.document_intelligence import (
     DocumentChunk,
@@ -5,6 +7,7 @@ from app.models.document_intelligence import (
     Embedding,
     ProcessingJob,
 )
+from app.models.education import LearningProgress
 from app.models.library import (
     Annotation,
     Collection,
@@ -14,15 +17,53 @@ from app.models.library import (
     PDFDeletion,
     Tag,
 )
+from app.models.multimodal import (
+    AssetChunkLink,
+    AssetDeletion,
+    AssetExtractionJob,
+    DocumentAsset,
+)
 from app.models.paper import Author, Paper, PaperAuthor, PaperSource, UserPaper
 from app.models.profile import Profile
+from app.models.projects import ProjectPaper, ProjectTask, ResearchNote, ResearchProject
 from app.models.research_paper import ResearchPaper
 from app.models.session import Session
+from app.models.teams import TeamMember, TeamNote, TeamSharedCollection, TeamWorkspace
 from app.models.user import User
 from app.models.user_preference import UserPreference
 from app.models.verification_token import VerificationToken
+from app.models.writing import (
+    Citation,
+    WritingCitation,
+    WritingDocument,
+    WritingVersion,
+)
 
 __all__ = [
+    "LearningProgress",
+    "TeamMember",
+    "TeamNote",
+    "TeamSharedCollection",
+    "TeamWorkspace",
+    "ProjectPaper",
+    "ProjectTask",
+    "ResearchNote",
+    "ResearchProject",
+    "AssetChunkLink",
+    "AssetDeletion",
+    "AssetExtractionJob",
+    "DocumentAsset",
+    "Citation",
+    "WritingCitation",
+    "WritingDocument",
+    "WritingVersion",
+    "Analysis",
+    "ComparisonPaper",
+    "PaperComparison",
+    "AIUsage",
+    "Conversation",
+    "Message",
+    "MessageCitation",
     "Annotation",
     "AuditLog",
     "Author",

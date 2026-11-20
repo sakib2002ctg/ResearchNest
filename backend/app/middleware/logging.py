@@ -1,25 +1,37 @@
-import time
+"""Safe request telemetry: route templates, never raw URLs/query parameters."""
 
-from fastapi import Request
-from starlette.middleware.base import BaseHTTPMiddleware
+import time
 
 from app.core.logging import logger
 
 
-class LoggingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        start_time = time.perf_counter()
+class LoggingMiddleware:
+    def __init__(self, app):
+        self.app = app
 
-        response = await call_next(request)
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        start = time.perf_counter()
+        status = 500
 
-        process_time = (time.perf_counter() - start_time) * 1000
+        async def observed_send(message):
+            nonlocal status
+            if message["type"] == "http.response.start":
+                status = message["status"]
+            await send(message)
 
-        logger.info(
-            "%s %s | Status: %s | %.2f ms",
-            request.method,
-            request.url.path,
-            response.status_code,
-            process_time,
-        )
-
-        return response
+        try:
+            await self.app(scope, receive, observed_send)
+        finally:
+            route = scope.get("route")
+            logger.info(
+                "http.request",
+                extra={
+                    "request_id": scope.get("state", {}).get("request_id"),
+                    "method": scope["method"],
+                    "route": getattr(route, "path", "<unmatched>"),
+                    "status": status,
+                    "duration_ms": round((time.perf_counter() - start) * 1000, 3),
+                },
+            )

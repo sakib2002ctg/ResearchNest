@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 
 import { Icon } from "@/components/Icon";
+import { MultimodalAssetsPanel } from "@/components/MultimodalAssetsPanel";
 import {
   api,
   type DocumentPage,
@@ -379,6 +380,7 @@ export function DocumentViewer({ paper, onClose }: { paper: LibraryPaper; onClos
                 )}
               </section>
             )}
+            <MultimodalAssetsPanel documentId={document.id} documentVersion={documentVersion} indexed={processingStatus === "completed"} />
           </div>
         )}
         <section aria-label={pick("Annotations", "টীকা")}>

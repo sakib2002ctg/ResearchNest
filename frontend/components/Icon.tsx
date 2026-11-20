@@ -18,6 +18,7 @@ const paths: Record<string, string> = {
   folder: "M3 6h7l2 3h9v11H3z M3 6V4h7l2 2",
   insights: "M4 20V4 M4 20h17 M8 16l4-6 4 3 5-8",
   learn: "m2 9 10-5 10 5-10 5z M6 11v6c4 3 8 3 12 0v-6 M22 9v8",
+  teams: "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M2 21v-2a7 7 0 0 1 14 0v2 M17 4a4 4 0 0 1 0 8 M20 21v-2a7 7 0 0 0-2-5",
   settings: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1z",
   menu: "M4 6h16 M4 12h16 M4 18h16",
   close: "m6 6 12 12 M6 18 18 6",

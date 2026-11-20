@@ -1,25 +1,44 @@
+"""Structured stdout records suitable for deployment log collection."""
+
+import json
 import logging
-from pathlib import Path
+from datetime import UTC, datetime
 
-# Create logs directory if it doesn't exist
-LOG_DIR = Path("logs")
-LOG_DIR.mkdir(exist_ok=True)
 
-LOG_FILE = LOG_DIR / "app.log"
+class SafeJSONFormatter(logging.Formatter):
+    def format(self, record):
+        payload = {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        for key in (
+            "request_id",
+            "method",
+            "route",
+            "status",
+            "duration_ms",
+            "error_type",
+        ):
+            if hasattr(record, key):
+                payload[key] = getattr(record, key)
+        # exc_info's repr may embed SQL parameters, bearer secrets or text.
+        # Never append traceback/local variables/provider response payloads.
+        if record.exc_info:
+            payload["error_type"] = record.exc_info[0].__name__
+        return json.dumps(payload, ensure_ascii=False)
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(LOG_FILE, encoding="utf-8"),
-    ],
-)
 
-# Outbound URL logs can include search text and provider credentials.
+logger = logging.getLogger("researchnest")
+if not any(
+    getattr(handler, "researchnest_handler", False) for handler in logger.handlers
+):
+    handler = logging.StreamHandler()
+    handler.researchnest_handler = True
+    handler.setFormatter(SafeJSONFormatter())
+    logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+logger.propagate = False
 for outbound_logger in ("httpx", "httpcore"):
     logging.getLogger(outbound_logger).setLevel(logging.WARNING)
-
-# Shared logger for the application
-logger = logging.getLogger("researchnest")

@@ -1,68 +1,161 @@
+x-backend-environment: &backend-environment
+  APP_NAME: ResearchNest
+  APP_ENV: production
+  DEBUG: "false"
+  SECRET_KEY: ${SECRET_KEY:?Set a unique strong SECRET_KEY outside source control}
+  DATABASE_URL: postgresql://researchnest_app:${APP_DATABASE_PASSWORD:?Set APP_DATABASE_PASSWORD}@db:5432/researchnest
+  REDIS_URL: redis://redis:6379/0
+  PGVECTOR_ENABLED: "true"
+  CORS_ORIGINS: ${CORS_ORIGINS:?Set explicit HTTPS browser origins as JSON}
+  JWT_ISSUER: researchnest-api
+  JWT_AUDIENCE: researchnest-client
+  API_RATE_LIMIT_ENABLED: "true"
+  HSTS_ENABLED: "true"
+  PDF_STORAGE_ROOT: /var/lib/researchnest/pdfs
+  ASSET_STORAGE_ROOT: /var/lib/researchnest/assets
+  DOCUMENT_WORKER_IN_API: "false"
+  MULTIMODAL_WORKER_IN_API: "false"
+  AI_DEFAULT_PROVIDER: offline
+  CLAMAV_HOST: ${CLAMAV_HOST:-}
+  CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_FROM: ${SMTP_FROM:-}
+  SMTP_USERNAME: ${SMTP_USERNAME:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+
+x-backend-service: &backend-service
+  image: researchnest-backend:v2
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  init: true
+  read_only: true
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+  tmpfs: ["/tmp:size=268435456,mode=1777"]
+  environment: *backend-environment
+  volumes:
+    - pdf_data:/var/lib/researchnest/pdfs
+    - asset_data:/var/lib/researchnest/assets
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+    redis:
+      condition: service_healthy
+
 services:
   db:
     image: pgvector/pgvector:pg17
-
-    container_name: researchnest-db
-
     restart: unless-stopped
-
     environment:
       POSTGRES_DB: researchnest
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-
-    ports:
-      - "5432:5432"
-
+      POSTGRES_USER: researchnest_bootstrap
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      APP_DATABASE_PASSWORD: ${APP_DATABASE_PASSWORD:?Set APP_DATABASE_PASSWORD}
+      MIGRATION_DATABASE_PASSWORD: ${MIGRATION_DATABASE_PASSWORD:?Set MIGRATION_DATABASE_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
+      - ./scripts/docker/init_db.sh:/docker-entrypoint-initdb.d/10-researchnest.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d researchnest"]
+      test: ["CMD-SHELL", "pg_isready -U researchnest_bootstrap -d researchnest"]
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 3s
+      retries: 10
+      start_period: 20s
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
-      timeout: 5s
+      timeout: 3s
       retries: 5
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-
-    image: researchnest-backend:latest
-
-    container_name: researchnest-backend
-
-    restart: unless-stopped
-
+  migrate:
+    <<: *backend-service
+    restart: "no"
+    environment:
+      <<: *backend-environment
+      DATABASE_URL: postgresql://researchnest_migrator:${MIGRATION_DATABASE_PASSWORD:?Set MIGRATION_DATABASE_PASSWORD}@db:5432/researchnest
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_healthy
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        alembic upgrade head
+        python - <<'PY'
+        from sqlalchemy import create_engine, text
+        from app.core.config import settings
+        engine = create_engine(settings.DATABASE_URL, hide_parameters=True)
+        with engine.begin() as connection:
+            connection.execute(text("REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM researchnest_app"))
+            connection.execute(text("REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON alembic_version FROM researchnest_app"))
+        engine.dispose()
+        PY
 
-    env_file:
-      - ./backend/.env.docker
-
+  backend:
+    <<: *backend-service
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-proxy-headers", "--no-access-log"]
     ports:
-      - "8000:8000"
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4).close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
-    volumes:
-      - ./backend:/app
+  document-worker:
+    <<: *backend-service
+    command: ["python", "-m", "app.modules.documents.worker"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
 
-    command: >
-      uvicorn app.main:app
-      --host 0.0.0.0
-      --port 8000
-      --reload
+  multimodal-worker:
+    <<: *backend-service
+    command: ["python", "-m", "app.modules.multimodal.worker"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+  frontend:
+    image: researchnest-frontend:v2
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:?Set the browser-visible HTTPS API URL ending in /api/v1}
+    restart: unless-stopped
+    init: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   postgres_data:
+  redis_data:
+  pdf_data:
+  asset_data:

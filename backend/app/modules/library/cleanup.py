@@ -50,6 +50,9 @@ async def drain_pdf_deletions(db: AsyncSession) -> None:
     except (OSError, SQLAlchemyError):
         await db.rollback()
         logger.warning("PDF cleanup could not finish. Will retry.")
+    from app.modules.multimodal.cleanup import drain_asset_deletions
+
+    await drain_asset_deletions(db)
 
 
 async def run_pdf_cleanup(factory: async_sessionmaker[AsyncSession]) -> None:

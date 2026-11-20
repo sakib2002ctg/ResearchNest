@@ -101,13 +101,7 @@ class SemanticScholarProvider(AsyncProvider):
         payload = self._json(response)
         if not isinstance(payload, dict):
             return None
-        paper = self._paper(payload)
-        paper.citation_links = [
-            self._citation_link(self._paper(item))
-            for item in self._records(payload.get("citations"))[:20]
-            if item.get("title")
-        ]
-        return paper
+        return self._paper_with_citations(payload)
 
     async def get_by_id(self, external_id: str) -> ProviderPaper | None:
         value = external_id.strip()
@@ -115,14 +109,26 @@ class SemanticScholarProvider(AsyncProvider):
             return None
         response = await self._get(
             f"{self.endpoint}/paper/{quote(value, safe='')}",
-            params={"fields": _FIELDS},
+            params={"fields": _DOI_FIELDS},
             headers=self._headers(),
             allow_not_found=True,
         )
         if response.status_code == 404:
             return None
         payload = self._json(response)
-        return self._paper(payload) if isinstance(payload, dict) else None
+        return (
+            self._paper_with_citations(payload) if isinstance(payload, dict) else None
+        )
+
+    @classmethod
+    def _paper_with_citations(cls, payload: dict) -> ProviderPaper:
+        paper = cls._paper(payload)
+        paper.citation_links = [
+            cls._citation_link(cls._paper(item))
+            for item in cls._records(payload.get("citations"))[:20]
+            if item.get("title")
+        ]
+        return paper
 
     async def recommendations(
         self, paper_id: str, limit: int = 10

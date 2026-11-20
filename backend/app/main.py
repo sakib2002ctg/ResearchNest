@@ -4,15 +4,25 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.core.config import settings
+from app.core.config import settings, validate_runtime_settings
 from app.core.logging import logger
-from app.database.database import engine
+
+# Retain the existing engine import for legacy integrations and fixture overrides.
+from app.database.database import engine  # noqa: F401
 from app.database.discovery_database import create_discovery_engine
 from app.exceptions.handlers import register_exception_handlers
 from app.middleware.logging import LoggingMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.security import SecurityHeadersMiddleware
+from app.modules.admin.router import router as admin_router
+from app.modules.ai.gateway import AIProviderGateway
+from app.modules.ai.router import router as conversations_router
+from app.modules.ai.router import usage_router
+from app.modules.analysis.router import router as analysis_router
+from app.modules.analytics.router import router as analytics_router
+from app.modules.citations.router import router as citations_router
 from app.modules.discovery.cache import SearchCache
 from app.modules.discovery.gateway import DiscoveryGateway
 from app.modules.discovery.providers import (
@@ -27,8 +37,16 @@ from app.modules.documents.processing import DocumentProcessor
 from app.modules.documents.providers import embedding_provider
 from app.modules.documents.queue import DocumentDispatcher
 from app.modules.documents.router import router as documents_router
+from app.modules.education.router import router as education_router
 from app.modules.library.cleanup import run_pdf_cleanup
 from app.modules.library.router import router as library_router
+from app.modules.multimodal.cleanup import run_asset_cleanup
+from app.modules.multimodal.processing import run_jobs as run_asset_jobs
+from app.modules.multimodal.router import router as multimodal_router
+from app.modules.operations.router import router as operations_router
+from app.modules.projects.router import router as projects_router
+from app.modules.teams.router import router as teams_router
+from app.modules.writing.router import router as writing_router
 from app.routers.auth import router as auth_router
 from app.routers.papers import router as papers_router
 from app.routers.research import router as research_router
@@ -37,20 +55,15 @@ from app.routers.users import router as users_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_runtime_settings(settings)
     discovery_engine = create_discovery_engine(settings.DATABASE_URL)
     app.state.discovery_session_factory = async_sessionmaker(
         discovery_engine, expire_on_commit=False
     )
-    try:
-        # Test database connection
-        with engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
-
-        logger.info("Connected to PostgreSQL successfully!")
-        logger.info("ResearchNest application started.")
-
-    except Exception:
-        logger.exception("Database connection failed!")
+    app.state.ai_gateway = AIProviderGateway()
+    # Dependency outages must not block startup or the cheap liveness probe.
+    # /health/ready performs bounded asynchronous database/Redis/storage checks.
+    logger.info("Application started; dependency readiness is checked separately.")
 
     redis = (
         Redis.from_url(
@@ -59,6 +72,7 @@ async def lifespan(app: FastAPI):
         if settings.REDIS_URL
         else None
     )
+    app.state.operational_redis = redis
     gateway = DiscoveryGateway(
         {
             "arxiv": ArxivProvider(timeout=4),
@@ -106,9 +120,23 @@ async def lifespan(app: FastAPI):
         if settings.APP_ENV != "test"
         else None
     )
+    asset_tasks = []
+    if settings.APP_ENV != "test":
+        asset_tasks.append(
+            asyncio.create_task(run_asset_cleanup(app.state.discovery_session_factory))
+        )
+        if settings.MULTIMODAL_WORKER_IN_API:
+            asset_tasks.append(
+                asyncio.create_task(run_asset_jobs(app.state.discovery_session_factory))
+            )
     try:
         yield
     finally:
+        for task in asset_tasks:
+            task.cancel()
+        for task in asset_tasks:
+            with suppress(asyncio.CancelledError):
+                await task
         if cleanup_task:
             cleanup_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -125,11 +153,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="ResearchNest API",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
 # Middleware
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -144,6 +173,8 @@ app.add_middleware(
         "X-Requested-With",
     ],
 )
+app.add_middleware(SecurityHeadersMiddleware)
+app.include_router(operations_router)
 
 # Register global exception handlers
 register_exception_handlers(app)
@@ -157,6 +188,17 @@ for router in (
     discovery_router,
     library_router,
     documents_router,
+    conversations_router,
+    usage_router,
+    analysis_router,
+    citations_router,
+    writing_router,
+    multimodal_router,
+    projects_router,
+    analytics_router,
+    education_router,
+    teams_router,
+    admin_router,
 ):
     app.include_router(router, prefix="/api/v1")
 
@@ -170,11 +212,6 @@ def home():
     return {"message": "Welcome to ResearchNest!"}
 
 
-@app.get("/health")
-def health():
-    return {"status": "OK"}
-
-
 @app.get("/about")
 def about():
-    return {"project": "ResearchNest", "version": "1.0"}
+    return {"project": "ResearchNest", "version": "2.0.0"}

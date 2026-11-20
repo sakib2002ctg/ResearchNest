@@ -1,6 +1,101 @@
 "use client";
 
 export type Language = "en" | "bn";
+export interface BilingualText { en: string; bn: string }
+export interface LearningProgress {
+  completed_step_ids: string[]; is_completed: boolean; updated_at: string | null; percent: number;
+}
+export interface LearningGuide {
+  slug: string; title: BilingualText; summary: BilingualText; category: string; estimated_minutes: number;
+  steps: { id: string; title: BilingualText; description: BilingualText; checklist: BilingualText[]; module_path: string }[];
+  sources: { title: string; url: string }[]; progress: LearningProgress;
+}
+export interface GlossaryEntry {
+  slug: string; term: BilingualText; definition: BilingualText; example: BilingualText; category: string;
+}
+export interface GlossaryResult { items: GlossaryEntry[]; categories: string[] }
+export interface EducationExplainOptions { language: Language; provider: AIProvider; request_id: string }
+export interface BeginnerExplanation {
+  user_paper_id: number; language: Language; title: string;
+  supported_evidence: { chunk_id: number; document_id: number; document_version: number; page_number: number; paper_title: string; quoted_snippet: string }[];
+  beginner_explanation: string; missing_information: string; follow_up_questions: string[];
+  provider_used: string; model_used: string; evidence_status: "supported" | "partial_interpretation" | "insufficient_evidence";
+  plain_language_interpretation: { focus: "question" | "method" | "findings" | "limitations"; explanation: string; evidence_status: "partial_interpretation"; evidence: BeginnerExplanation["supported_evidence"] }[];
+  mode_notice: string; term_explanations: { term: string; definition: string }[];
+  response_kind: "beginner_guide_with_source_quotes";
+}
+export type TeamRole = "owner" | "editor" | "viewer";
+export type CollaboratorRole = Exclude<TeamRole, "owner">;
+export interface TeamWorkspaceInput { name: string; description: string | null }
+export interface TeamWorkspace extends TeamWorkspaceInput {
+  id: number; owner_id: number; my_role: TeamRole; member_count: number;
+  shared_collection_count: number; note_count: number; created_at: string; updated_at: string;
+}
+export interface TeamMember {
+  user_id: number; username: string; role: TeamRole; invited_by_id: number | null; joined_at: string;
+}
+export interface SharedTeamPaper {
+  user_paper_id: number; title: string; authors: string | null; source: string | null;
+  url: string | null; doi: string | null;
+}
+export interface TeamCollection {
+  id: number; collection_id: number; name: string; description: string | null;
+  shared_by_id: number; shared_at: string; papers: SharedTeamPaper[]; total_papers?: number; papers_truncated?: boolean;
+}
+export interface TeamNoteInput { title: string; content: string; user_paper_id?: number | null }
+export interface TeamNote extends TeamNoteInput {
+  id: number; workspace_id: number; author_id: number; author_username: string;
+  created_at: string; updated_at: string;
+}
+export interface TeamDetail extends TeamWorkspace {
+  members: TeamMember[]; collections: TeamCollection[]; notes: TeamNote[];
+  members_truncated?: boolean; collections_truncated?: boolean; notes_truncated?: boolean;
+}
+export type ProjectStatus = "planning" | "active" | "review" | "completed" | "archived";
+export type TaskStatus = "todo" | "in_progress" | "done";
+export interface ProjectInput {
+  title: string; description: string | null; objectives: string[]; status: ProjectStatus;
+  target_deadline: string | null; collection_id: number | null;
+}
+export interface ResearchProject extends ProjectInput {
+  id: number; progress_percent: number; revision: number; created_at: string; updated_at: string;
+  paper_count: number; task_count: number; completed_task_count: number;
+}
+export interface ProjectPaper {
+  id: number; user_paper_id: number; role_in_project: string | null;
+  added_at: string; title: string; authors: string | null; reading_status: ReadingStatus;
+}
+export interface ProjectNoteInput { title: string; content: string; user_paper_id: number | null }
+export interface ResearchNote extends ProjectNoteInput { id: number; project_id: number; created_at: string; updated_at: string }
+export interface ProjectTaskInput { title: string; description: string | null; is_milestone: boolean; status: TaskStatus; due_date: string | null }
+export interface ProjectTask extends ProjectTaskInput { id: number; project_id: number; completed_at: string | null; created_at: string; updated_at: string }
+export interface ProjectDetail extends ResearchProject {
+  papers: ProjectPaper[]; notes: ResearchNote[]; tasks: ProjectTask[];
+  conversations: Pick<Conversation, "id" | "title" | "language" | "updated_at">[];
+}
+export type GraphOrigin = "verified_metadata" | "inferred_similarity";
+export interface GraphNode { id: string; type: "paper" | "author" | "topic" | "tag" | "project"; label: string; origin: GraphOrigin; provenance: string; user_paper_id?: number | null; project_id?: number | null }
+export interface GraphEdge { id: string; source: string; target: string; type: string; origin: GraphOrigin; provenance: string }
+export interface KnowledgeGraph { nodes: GraphNode[]; edges: GraphEdge[]; truncated: boolean; limits: { papers: number; nodes: number; edges: number }; project_id: number | null; project_scope?: { total_projects: number; included_projects: number; truncated: boolean } }
+export interface AnalyticsOverview {
+  totals: { saved_papers: number; indexed_papers: number; analyzed_papers: number; projects: number };
+  publication_years: { year: number; count: number; provenance: string }[];
+  unknown_publication_year_count: number;
+  reading_funnel: { status: ReadingStatus; count: number }[];
+  authors: { name: string; count: number }[];
+  coauthors: { source: string; target: string; count: number }[];
+  venues: { name: string; count: number; provenance: string }[];
+  sources: { name: string; count: number }[];
+  topics: { name: string; count: number; origin: GraphOrigin }[];
+  tags: { id: number; name: string; color: string | null; count: number }[];
+  coverage: { saved: number; indexed: number; analyzed: number; indexed_percent: number; analyzed_percent: number; analysis_freshness?: { checked_papers: number; unchecked_papers: number; truncated: boolean; paper_limit: number; chunk_limit: number; chunk_rows_budgeted: number } };
+  scope: { project_id: number | null; total_papers: number; included_papers: number; truncated: boolean };
+  project_scope?: { total_projects: number; included_projects: number; truncated: boolean };
+}
+export interface ResearchTimeline {
+  items: { id: string; type: string; title: string; occurred_at: string; user_paper_id?: number | null; project_id?: number | null; provenance: string }[];
+  truncated: boolean; limit: number; project_id: number | null;
+}
 export type Theme = "system" | "light" | "dark";
 export type Privacy = "private" | "public";
 
@@ -471,7 +566,8 @@ type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   authenticated?: boolean;
-  responseType?: "pdf";
+  responseType?: "pdf" | "download";
+  expectedMime?: string;
   signal?: AbortSignal;
 };
 
@@ -488,7 +584,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const timeout = globalThis.setTimeout(() => controller.abort(), 25_000);
   const multipart = typeof FormData !== "undefined" && options.body instanceof FormData;
   const requestHeaders: Record<string, string> = {
-    Accept: options.responseType === "pdf" ? "application/pdf" : "application/json",
+    Accept: options.responseType === "pdf" ? "application/pdf" : options.expectedMime ?? "application/json",
   };
   if (options.body !== undefined && !multipart) requestHeaders["Content-Type"] = "application/json";
   if (authenticated && requestToken) {
@@ -509,9 +605,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       redirect: "error",
     });
     if (response.status === 204) return undefined as T;
-    if (response.ok && options.responseType === "pdf") {
-      if (response.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase() !== "application/pdf") {
-        throw new ApiError("The service returned an invalid PDF response.", 502);
+    if (response.ok && options.responseType) {
+      const expected = options.responseType === "pdf" ? "application/pdf" : options.expectedMime;
+      if (!expected || response.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase() !== expected) {
+        throw new ApiError("The service returned an invalid file response.", 502);
       }
       return (await response.blob()) as T;
     }
@@ -552,6 +649,84 @@ function searchParams(values: Record<string, string | number | undefined>): stri
 }
 
 export const api = {
+  getLearningGuides: (signal?: AbortSignal) => request<LearningGuide[]>("/education/guides", { signal }),
+  getLearningGuide: (slug: string, signal?: AbortSignal) => request<LearningGuide>(`/education/guides/${encodeURIComponent(slug)}`, { signal }),
+  updateLearningProgress: (slug: string, completed_step_ids: string[], signal?: AbortSignal) => request<LearningProgress>(`/education/guides/${encodeURIComponent(slug)}/progress`, { method: "POST", body: { completed_step_ids }, signal }),
+  getGlossary: (q = "", category = "", signal?: AbortSignal) => request<GlossaryResult>(`/education/glossary?${searchParams({ q, category: category || undefined })}`, { signal }),
+  explainPaperForBeginners: (paperId: number, body: EducationExplainOptions, signal?: AbortSignal) => request<BeginnerExplanation>(`/education/explain-paper/${paperId}`, { method: "POST", body, signal }),
+  getTeams: (limit = 30, offset = 0, signal?: AbortSignal) => request<TeamWorkspace[]>(`/teams?${searchParams({ limit, offset })}`, { signal }),
+  createTeam: (body: TeamWorkspaceInput, signal?: AbortSignal) => request<TeamDetail>("/teams", { method: "POST", body, signal }),
+  getTeam: (id: number, signal?: AbortSignal) => request<TeamDetail>(`/teams/${id}`, { signal }),
+  updateTeam: (id: number, body: Partial<TeamWorkspaceInput>, signal?: AbortSignal) => request<TeamDetail>(`/teams/${id}`, { method: "PUT", body, signal }),
+  deleteTeam: (id: number, signal?: AbortSignal) => request<void>(`/teams/${id}`, { method: "DELETE", signal }),
+  addTeamMember: (id: number, identifier: string, role: CollaboratorRole, signal?: AbortSignal) => request<TeamMember>(`/teams/${id}/members`, { method: "POST", body: { identifier, role }, signal }),
+  updateTeamMember: (id: number, memberId: number, role: CollaboratorRole, signal?: AbortSignal) => request<TeamMember>(`/teams/${id}/members/${memberId}`, { method: "PUT", body: { role }, signal }),
+  removeTeamMember: (id: number, memberId: number, signal?: AbortSignal) => request<void>(`/teams/${id}/members/${memberId}`, { method: "DELETE", signal }),
+  shareTeamCollection: (id: number, collection_id: number, signal?: AbortSignal) => request<TeamCollection>(`/teams/${id}/collections`, { method: "POST", body: { collection_id }, signal }),
+  unshareTeamCollection: (id: number, collectionId: number, signal?: AbortSignal) => request<void>(`/teams/${id}/collections/${collectionId}`, { method: "DELETE", signal }),
+  getTeamNotes: (id: number, limit = 100, offset = 0, signal?: AbortSignal) => request<TeamNote[]>(`/teams/${id}/notes?${searchParams({ limit, offset })}`, { signal }),
+  createTeamNote: (id: number, body: TeamNoteInput, signal?: AbortSignal) => request<TeamNote>(`/teams/${id}/notes`, { method: "POST", body, signal }),
+  updateTeamNote: (id: number, noteId: number, body: Partial<TeamNoteInput>, signal?: AbortSignal) => request<TeamNote>(`/teams/${id}/notes/${noteId}`, { method: "PUT", body, signal }),
+  deleteTeamNote: (id: number, noteId: number, signal?: AbortSignal) => request<void>(`/teams/${id}/notes/${noteId}`, { method: "DELETE", signal }),
+  getProjects: (limit = 50, offset = 0, signal?: AbortSignal) => request<ResearchProject[]>(`/projects?${searchParams({ limit, offset })}`, { signal }),
+  createProject: (body: ProjectInput) => request<ResearchProject>("/projects", { method: "POST", body }),
+  getProject: (id: number, signal?: AbortSignal) => request<ProjectDetail>(`/projects/${id}`, { signal }),
+  updateProject: (id: number, body: Partial<ProjectInput> & { expected_revision: number }) => request<ProjectDetail>(`/projects/${id}`, { method: "PUT", body }),
+  deleteProject: (id: number) => request<void>(`/projects/${id}`, { method: "DELETE" }),
+  addProjectPaper: (id: number, user_paper_id: number, role_in_project: string | null) => request<ProjectPaper>(`/projects/${id}/papers`, { method: "POST", body: { user_paper_id, role_in_project } }),
+  removeProjectPaper: (id: number, paperId: number) => request<void>(`/projects/${id}/papers/${paperId}`, { method: "DELETE" }),
+  getProjectNotes: (id: number) => request<ResearchNote[]>(`/projects/${id}/notes`),
+  createProjectNote: (id: number, body: ProjectNoteInput) => request<ResearchNote>(`/projects/${id}/notes`, { method: "POST", body }),
+  updateProjectNote: (id: number, noteId: number, body: Partial<ProjectNoteInput>) => request<ResearchNote>(`/projects/${id}/notes/${noteId}`, { method: "PUT", body }),
+  deleteProjectNote: (id: number, noteId: number) => request<void>(`/projects/${id}/notes/${noteId}`, { method: "DELETE" }),
+  getProjectTasks: (id: number) => request<ProjectTask[]>(`/projects/${id}/tasks`),
+  createProjectTask: (id: number, body: ProjectTaskInput) => request<ProjectTask>(`/projects/${id}/tasks`, { method: "POST", body }),
+  updateProjectTask: (id: number, taskId: number, body: Partial<ProjectTaskInput>) => request<ProjectTask>(`/projects/${id}/tasks/${taskId}`, { method: "PUT", body }),
+  deleteProjectTask: (id: number, taskId: number) => request<void>(`/projects/${id}/tasks/${taskId}`, { method: "DELETE" }),
+  linkProjectConversation: (id: number, conversationId: number) => request<Pick<Conversation, "id" | "title" | "language" | "created_at" | "updated_at">>(`/projects/${id}/conversations/${conversationId}`, { method: "POST" }),
+  exportProject: (id: number, format: "json" | "markdown") => request<Blob>(`/projects/${id}/export?${searchParams({ format })}`, { responseType: "download", expectedMime: format === "json" ? "application/json" : "text/markdown" }),
+  getAnalyticsOverview: (project_id?: number, signal?: AbortSignal) => request<AnalyticsOverview>(`/analytics/overview?${searchParams({ project_id })}`, { signal }),
+  getAnalyticsTimeline: (project_id?: number, signal?: AbortSignal) => request<ResearchTimeline>(`/analytics/timeline?${searchParams({ project_id })}`, { signal }),
+  getKnowledgeGraph: (project_id?: number, signal?: AbortSignal) => request<KnowledgeGraph>(`/analytics/knowledge-graph?${searchParams({ project_id })}`, { signal }),
+  extractDocumentAssets: (documentId: number) => request<AssetExtraction>(`/multimodal/documents/${documentId}/extract`, { method: "POST" }),
+  getDocumentAssets: (documentId: number, params: { asset_type?: DocumentAssetType; page_number?: number } = {}, signal?: AbortSignal) =>
+    request<DocumentAssets>(`/multimodal/documents/${documentId}/assets?${searchParams(params)}`, { signal }),
+  getDocumentAsset: (assetId: number, signal?: AbortSignal) => request<DocumentAssetDetail>(`/multimodal/assets/${assetId}`, { signal }),
+  getDocumentAssetImage: (assetId: number, signal?: AbortSignal) => request<Blob>(`/multimodal/assets/${assetId}/image`, { responseType: "download", expectedMime: "image/png", signal }),
+  explainDocumentAsset: (assetId: number, body: VisionOptions) => request<VisionAnswer>(`/multimodal/assets/${assetId}/explain`, { method: "POST", body }),
+  questionDocumentAsset: (assetId: number, body: VisionOptions & { question: string }) => request<VisionAnswer>(`/multimodal/assets/${assetId}/vqa`, { method: "POST", body }),
+  getCitations: (limit = 50, offset = 0, q?: string) => request<Citation[]>(`/citations?${searchParams({ limit, offset, q })}`),
+  createCitation: (body: CitationInput) => request<Citation>("/citations", { method: "POST", body }),
+  updateCitation: (id: number, body: CitationInput) => request<Citation>(`/citations/${id}`, { method: "PUT", body }),
+  deleteCitation: (id: number) => request<void>(`/citations/${id}`, { method: "DELETE" }),
+  importCitations: (format: ReferenceFormat, content: string) => request<CitationImportResult>("/citations/import", { method: "POST", body: { format, content } }),
+  formatCitations: (citation_ids: number[], style: CitationStyle) => request<FormattedReferences>("/citations/format", { method: "POST", body: { citation_ids, style } }),
+  exportCitations: (format: ReferenceFormat, ids: number[] = []) => {
+    const params = new URLSearchParams({ format });
+    ids.forEach((id) => params.append("citation_ids", String(id)));
+    return request<Blob>(`/citations/export?${params}`, { responseType: "download", expectedMime: format === "bibtex" ? "application/x-bibtex" : "application/x-research-info-systems" });
+  },
+  getWritingDocuments: (limit = 30, offset = 0) => request<WritingDocument[]>(`/writing?${searchParams({ limit, offset })}`),
+  createWritingDocument: (body: WritingCreate) => request<WritingDocument>("/writing", { method: "POST", body }),
+  getWritingDocument: (id: number) => request<WritingDocument>(`/writing/${id}`),
+  updateWritingDocument: (id: number, body: WritingUpdate) => request<WritingDocument>(`/writing/${id}`, { method: "PUT", body }),
+  deleteWritingDocument: (id: number) => request<void>(`/writing/${id}`, { method: "DELETE" }),
+  getWritingVersions: (id: number) => request<WritingVersion[]>(`/writing/${id}/versions`),
+  restoreWritingVersion: (id: number, version: number, expected_revision: number) => request<WritingDocument>(`/writing/${id}/versions/${version}/restore`, { method: "POST", body: { expected_revision } }),
+  assistWriting: (id: number, body: WritingAssistInput) => request<WritingSuggestion>(`/writing/${id}/assist`, { method: "POST", body }),
+  exportWriting: (id: number, format: WritingExportFormat, style: CitationStyle) => request<Blob>(`/writing/${id}/export?${searchParams({ format, style })}`, { responseType: "download", expectedMime: writingMimeTypes[format] }),
+  analyzePaper: (id: number, body: AnalysisOptions) => request<PaperAnalysis>(`/analysis/${id}`, { method: "POST", body }),
+  getPaperAnalysis: (id: number, language: Language) => request<PaperAnalysis>(`/analysis/${id}?${searchParams({ language })}`),
+  getPaperAnalyses: (limit = 30, offset = 0) => request<PaperAnalysis[]>(`/analysis?${searchParams({ limit, offset })}`),
+  comparePapers: (body: PaperComparisonInput) => request<PaperComparison>("/analysis/compare", { method: "POST", body }),
+  getPaperComparisons: (limit = 30, offset = 0) => request<PaperComparison[]>(`/analysis/comparisons?${searchParams({ limit, offset })}`),
+  getPaperComparison: (id: number) => request<PaperComparison>(`/analysis/comparisons/${id}`),
+  getConversations: (limit = 50, offset = 0) => request<Conversation[]>(`/conversations?${searchParams({ limit, offset })}`),
+  createConversation: (body: ConversationInput) => request<Conversation>("/conversations", { method: "POST", body }),
+  getConversation: (id: number) => request<ConversationHistory>(`/conversations/${id}`),
+  deleteConversation: (id: number) => request<void>(`/conversations/${id}`, { method: "DELETE" }),
+  sendAssistantMessage: (id: number, body: AssistantQuestion) => request<AssistantMessage>(`/conversations/${id}/messages`, { method: "POST", body }),
+  getAIUsage: (signal?: AbortSignal) => request<AIUsageStats>("/ai/usage", { signal }),
   getMe: () => request<User>("/users/me"),
   login: (values: { email: string; password: string }) =>
     request<Token>("/auth/login", { method: "POST", body: values, authenticated: false }),
@@ -587,7 +762,7 @@ export const api = {
   getProfile: () => request<Profile>("/users/me/profile"),
   updateProfile: (values: Partial<ProfileInput>) =>
     request<Profile>("/users/me/profile", { method: "PUT", body: values }),
-  getPreferences: () => request<Preferences>("/users/me/preferences"),
+  getPreferences: (signal?: AbortSignal) => request<Preferences>("/users/me/preferences", { signal }),
   updatePreferences: (values: Partial<PreferenceInput>) =>
     request<Preferences>("/users/me/preferences", { method: "PUT", body: values }),
   getSessions: () => request<SessionInfo[]>("/users/me/sessions"),
@@ -605,11 +780,11 @@ export const api = {
   updatePaper: (id: number, values: Partial<PaperInput>) =>
     request<Paper>(`/papers/${id}`, { method: "PUT", body: values }),
   deletePaper: (id: number) => request<StatusMessage>(`/papers/${id}`, { method: "DELETE" }),
-  getLibrary: (params: { q?: string; collection_id?: number; tag_id?: number; page: number; size: number }) =>
-    request<LibraryPage>(`/library/papers?${searchParams(params)}`),
+  getLibrary: (params: { q?: string; collection_id?: number; tag_id?: number; page: number; size: number }, signal?: AbortSignal) =>
+    request<LibraryPage>(`/library/papers?${searchParams(params)}`, { signal }),
   setReadingProgress: (paperId: number, body: ReadingProgress) =>
     request<ReadingProgress & { id: number }>(`/library/papers/${paperId}/progress`, { method: "PATCH", body }),
-  getLibraryCollections: () => request<LibraryCollection[]>("/library/collections"),
+  getLibraryCollections: (signal?: AbortSignal) => request<LibraryCollection[]>("/library/collections", { signal }),
   getLibraryCollection: (id: number) => request<LibraryCollection>(`/library/collections/${id}`),
   createLibraryCollection: (body: LibraryCollectionInput) =>
     request<LibraryCollection>("/library/collections", { method: "POST", body }),
@@ -676,4 +851,152 @@ export const api = {
       method: "POST",
       body: { source, external_id, doi },
     }),
+};
+
+export type AIProvider = "auto" | "offline" | "local" | "cloud";
+export interface ConversationInput {
+  title: string; scope_type: "single_paper" | "selected_papers" | "collection";
+  scope_paper_ids: number[]; scope_collection_id: number | null; language: Language; project_id?: number | null;
+}
+export interface Conversation extends ConversationInput { id: number; project_id: number | null; created_at: string; updated_at: string }
+export interface SourceCitation {
+  id: number; user_paper_id: number; document_id: number | null; chunk_id: number | null;
+  paper_title: string; page_number: number; section_heading: string | null;
+  quoted_snippet: string; relevance_score: number;
+}
+export interface AssistantMessage {
+  id: number; role: "user" | "assistant"; content: string;
+  evidence_status: "supported" | "partial_interpretation" | "insufficient_evidence";
+  interpretation: string; missing_information: string; follow_up_questions: string[];
+  citations: SourceCitation[]; model_used: string | null; provider_used: string | null; created_at: string;
+}
+export interface ConversationHistory extends Conversation { messages: AssistantMessage[] }
+export interface AssistantQuestion { content: string; provider: AIProvider; request_id: string }
+export interface AIQuotaWindow {
+  requests: number; tokens: number; request_limit: number; token_limit: number;
+  remaining_requests: number; remaining_tokens: number;
+}
+export interface AIUsageStats {
+  hourly: AIQuotaWindow; daily: AIQuotaWindow; active_requests: number;
+  max_concurrent_requests: number; window_type: "rolling";
+}
+
+export type DocumentAssetType = "figure" | "chart" | "diagram" | "table" | "equation";
+export interface AssetExtraction {
+  job_id: number; status: "queued" | "running" | "completed" | "failed";
+  document_id: number; document_version: number; error_message?: string | null;
+}
+export interface DocumentAsset {
+  id: number; document_id: number; document_version: number; asset_type: DocumentAssetType;
+  asset_label: string | null; page_number: number; caption: string | null;
+  extracted_text_or_latex: string | null;
+  structured_data: { bbox?: number[]; headers?: unknown[]; rows?: unknown[][]; [key: string]: unknown } | null;
+  linked_chunk_ids: number[]; ai_explanation: string | null; has_image: boolean;
+  created_at: string; updated_at: string;
+}
+export interface DocumentAssetDetail extends DocumentAsset {
+  linked_chunks: Array<{ id: number; page_number: number; section_heading: string | null; content: string }>;
+}
+export interface DocumentAssets {
+  items: DocumentAsset[]; extraction: AssetExtraction | null; is_stale: boolean;
+}
+export interface VisionOptions { language: Language; provider: AIProvider; request_id: string }
+export interface VisionAnswer {
+  asset_id: number; language: Language;
+  evidence_status: "supported" | "partial_interpretation" | "insufficient_evidence";
+  extracted_facts: string[]; visual_interpretation: string; missing_information: string;
+  provider_used: string; model_used: string;
+  evidence: { page_number: number; asset_label: string | null; linked_chunk_ids: number[] };
+}
+
+export type AnalysisField = "abstract_summary" | "research_problem" | "research_objectives" | "methodology" | "datasets" | "models_and_algorithms" | "evaluation_metrics" | "key_results" | "contributions" | "limitations" | "future_work" | "strengths" | "weaknesses";
+export type FieldStatus = "supported" | "partial_interpretation" | "not_specified";
+export interface AnalysisEvidence {
+  field: string; user_paper_id: number; chunk_id: number; document_id: number;
+  document_version: number; paper_title: string; page_number: number;
+  section_heading: string | null; quoted_snippet: string;
+}
+export interface ExtractionFields {
+  abstract_summary: string; research_problem: string; research_objectives: string[];
+  methodology: string; datasets: string[]; models_and_algorithms: string[];
+  evaluation_metrics: string[]; key_results: string; contributions: string[];
+  limitations: string[]; future_work: string[]; strengths: string[]; weaknesses: string[];
+  field_statuses: Record<AnalysisField, FieldStatus>; evidence_links: AnalysisEvidence[];
+}
+export interface PaperAnalysis extends ExtractionFields {
+  id: number; user_paper_id: number; document_id: number | null; document_version: number;
+  language: Language; status: "completed" | "failed"; is_stale: boolean;
+  error_message: string | null; provider_used: string; model_used: string;
+  created_at: string; updated_at: string;
+}
+export interface ComparisonColumn extends ExtractionFields { user_paper_id: number; paper_title: string }
+export interface ResearchGap {
+  title: string; description: string; scope: "selected_papers_only";
+  evidence_status: "partial_interpretation"; evidence_links: AnalysisEvidence[];
+}
+export interface PaperComparison {
+  id: number; title: string; user_paper_ids: number[]; language: Language;
+  comparison_matrix: ComparisonColumn[]; literature_synthesis: string; research_gaps: ResearchGap[];
+  evidence_links: AnalysisEvidence[]; provider_used: string; model_used: string;
+  created_at: string; is_stale: boolean;
+}
+export interface AnalysisOptions {
+  language: Language; force_refresh: boolean; provider: AIProvider; request_id: string;
+}
+export interface PaperComparisonInput {
+  user_paper_ids: number[]; title: string; language: Language; provider: AIProvider; request_id: string;
+}
+
+export type CitationStyle = "apa" | "ieee" | "mla" | "chicago" | "harvard";
+export type ReferenceFormat = "bibtex" | "ris";
+export type CitationEntryType = "article" | "inproceedings" | "book" | "misc" | "preprint";
+export interface CitationInput {
+  user_paper_id?: number | null; cite_key?: string; entry_type?: CitationEntryType;
+  title?: string; authors?: string[]; year?: number | null; venue?: string | null;
+  volume?: string | null; issue?: string | null; pages?: string | null;
+  doi?: string | null; url?: string | null; publisher?: string | null;
+}
+export interface Citation {
+  id: number; user_paper_id: number | null; cite_key: string; entry_type: CitationEntryType;
+  title: string; authors: string[]; year: number | null; venue: string | null;
+  volume: string | null; issue: string | null; pages: string | null; doi: string | null;
+  url: string | null; publisher: string | null; is_verified: boolean;
+  created_at: string; updated_at: string; warnings: string[];
+}
+export interface CitationImportResult { items: Citation[]; created: number; duplicates: number; warnings: string[] }
+export interface FormattedReferences {
+  style: CitationStyle; entries: Array<{ citation_id: number; cite_key: string; in_text: string; bibliography: string; is_verified: boolean }>;
+  bibliography: string[]; warnings: string[];
+}
+export type WritingType = "research_paper" | "research_proposal" | "thesis" | "literature_review";
+export interface WritingDraft {
+  title: string; doc_type: WritingType; language: Language; outline: string[];
+  content_markdown: string; cited_citation_ids: number[];
+}
+export type WritingCreate = Partial<WritingDraft> & Pick<WritingDraft, "title" | "doc_type" | "language">;
+export type WritingUpdate = Partial<WritingDraft> & { expected_revision: number; create_version?: boolean; change_summary?: string };
+export interface WritingDocument extends WritingDraft {
+  id: number; revision: number; word_count: number; ai_suggestions_log: WritingSuggestion[];
+  created_at: string; updated_at: string;
+}
+export interface WritingVersion {
+  id: number; writing_document_id: number; version_number: number; title: string;
+  content_markdown: string; change_summary: string | null; created_at: string;
+}
+export type WritingAction = "draft_section" | "tone" | "grammar" | "paraphrase";
+export type WritingSection = "abstract" | "introduction" | "literature_review" | "methodology" | "results_discussion";
+export interface WritingAssistInput {
+  action: WritingAction; section: WritingSection; text?: string; user_paper_ids: number[];
+  provider: AIProvider; request_id: string;
+}
+export interface WritingSuggestion {
+  id: string; kind: "ai_generated_suggestion"; action: WritingAction; section: WritingSection;
+  content_markdown: string; evidence_links: AnalysisEvidence[]; provider_used: string;
+  model_used: string; created_at: string;
+  citation_ids: number[];
+}
+export type WritingExportFormat = "md" | "tex" | "docx" | "pdf";
+const writingMimeTypes: Record<WritingExportFormat, string> = {
+  md: "text/markdown", tex: "application/x-tex",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", pdf: "application/pdf",
 };

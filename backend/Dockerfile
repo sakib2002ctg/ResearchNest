@@ -1,32 +1,16 @@
 FROM python:3.13-slim
-
-# Prevent Python from writing .pyc files
-ENV PYTHONDONTWRITEBYTECODE=1
-
-# Ensure Python output is sent straight to the terminal
-ENV PYTHONUNBUFFERED=1
-
-# Set working directory
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy dependency list first (better Docker layer caching)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 tesseract-ocr tesseract-ocr-ben \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 researchnest \
+    && useradd --uid 10001 --gid researchnest --create-home researchnest \
+    && install -d -o researchnest -g researchnest -m 700 \
+       /var/lib/researchnest/pdfs /var/lib/researchnest/assets
 COPY requirements.txt .
-
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
-
-# Copy application source
-COPY . .
-
-# Expose FastAPI port
+RUN pip install --no-cache-dir -r requirements.txt
+COPY --chown=researchnest:researchnest . .
+USER 10001:10001
 EXPOSE 8000
-
-# Start the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-proxy-headers", "--no-access-log"]

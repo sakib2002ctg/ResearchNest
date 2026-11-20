@@ -123,11 +123,13 @@ def _harden_windows_directory(path: Path) -> None:
 
 
 class PDFStorage:
+    key_pattern = _PDF_KEY
+
     def __init__(self, root: Path) -> None:
         self.root = root.absolute()
 
     def _path(self, key: str, *, create: bool = False) -> Path:
-        if not _PDF_KEY.fullmatch(key):
+        if not self.key_pattern.fullmatch(key):
             raise OSError("Invalid PDF storage key.")
         for directory in (*reversed(self.root.parents), self.root):
             try:

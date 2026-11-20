@@ -11,13 +11,14 @@ const navigation = [
   { href: "/dashboard", key: "dashboard", icon: "dashboard" },
   { href: "/discover", key: "discover", icon: "search" },
   { href: "/library", key: "library", icon: "library" },
-  { href: "/assistant", key: "assistant", icon: "assistant", phase: "06" },
-  { href: "/analysis", key: "analysis", icon: "analysis", phase: "07" },
-  { href: "/writing", key: "writing", icon: "writing", phase: "08" },
-  { href: "/citations", key: "citations", icon: "citations", phase: "08" },
-  { href: "/projects", key: "projects", icon: "projects", phase: "10" },
-  { href: "/insights", key: "insights", icon: "insights", phase: "10" },
-  { href: "/learn", key: "learn", icon: "learn", phase: "11" },
+  { href: "/assistant", key: "assistant", icon: "assistant" },
+  { href: "/analysis", key: "analysis", icon: "analysis" },
+  { href: "/writing", key: "writing", icon: "writing" },
+  { href: "/citations", key: "citations", icon: "citations" },
+  { href: "/projects", key: "projects", icon: "projects" },
+  { href: "/insights", key: "insights", icon: "insights" },
+  { href: "/learn", key: "learn", icon: "learn" },
+  { href: "/teams", key: "teams", icon: "teams" },
   { href: "/settings", key: "settings", icon: "settings" },
 ] as const;
 
@@ -90,7 +91,6 @@ export function AppShell({ children, title, description, showHeading = false }: 
               aria-current={pathname === item.href ? "page" : undefined}
               onClick={() => setMenuOpen(false)}>
               <Icon name={item.icon} size={19} /><span>{t(`nav.${item.key}`)}</span>
-              {"phase" in item && <span className="nav-phase" title={pick(`Preview · Phase ${item.phase}`, `প্রিভিউ · ধাপ ${item.phase}`)}>{item.phase}</span>}
             </Link>
           ))}
         </nav>
