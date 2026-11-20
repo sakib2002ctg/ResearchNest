@@ -393,5 +393,5 @@ def test_phase11_downgrade_protects_existing_learning_team_and_usage_data(
             connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            == "e1c25d9b743f"
+            == "f2d36e0c854a"
         )

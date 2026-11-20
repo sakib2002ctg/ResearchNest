@@ -43,6 +43,7 @@ def test_openapi_exposes_versioned_routes_and_hides_legacy_aliases(client):
     assert set(schema["paths"]) == {
         "/",
         "/health",
+        "/health/ready",
         "/about",
         "/api/v1/auth/register",
         "/api/v1/auth/login",
@@ -137,6 +138,12 @@ def test_openapi_exposes_versioned_routes_and_hides_legacy_aliases(client):
         "/api/v1/teams/{workspace_id}/collections/{collection_id}",
         "/api/v1/teams/{workspace_id}/notes",
         "/api/v1/teams/{workspace_id}/notes/{note_id}",
+        "/api/v1/admin/overview",
+        "/api/v1/admin/users",
+        "/api/v1/admin/users/{user_id}/revoke-sessions",
+        "/api/v1/admin/audit-logs",
+        "/api/v1/admin/jobs/failed",
+        "/api/v1/admin/jobs/{job_id}/requeue",
     }
     oauth_flow = schema["components"]["securitySchemes"]["OAuth2PasswordBearer"][
         "flows"
@@ -152,6 +159,7 @@ def test_openapi_exposes_versioned_routes_and_hides_legacy_aliases(client):
                 "/api/v1/analytics",
                 "/api/v1/education",
                 "/api/v1/teams",
+                "/api/v1/admin",
             )
         ):
             for operation in operations.values():

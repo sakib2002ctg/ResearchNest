@@ -45,3 +45,6 @@ build/
 
 # PyCharm
 *.iml
+.env.*
+.cache/
+storage/

@@ -84,7 +84,13 @@ def register_exception_handlers(app: FastAPI):
         request: Request,
         exc: Exception,
     ):
-        logger.exception("Unhandled exception occurred.")
+        logger.error(
+            "Unhandled request exception.",
+            extra={
+                "error_type": type(exc).__name__,
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
 
         return JSONResponse(
             status_code=500,

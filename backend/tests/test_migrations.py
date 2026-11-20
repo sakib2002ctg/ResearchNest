@@ -26,8 +26,9 @@ def test_migration_chain_is_linear_and_generates_postgresql_ddl(
     monkeypatch.setattr(settings, "PGVECTOR_ENABLED", vector_enabled)
     config = migration_config("postgresql://localhost/offline")
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["e1c25d9b743f"]
+    assert script.get_heads() == ["f2d36e0c854a"]
     assert [revision.revision for revision in script.walk_revisions()] == [
+        "f2d36e0c854a",
         "e1c25d9b743f",
         "d0f14b8a632e",
         "c9e30f7b521d",
@@ -189,7 +190,7 @@ def test_postgresql_migration_round_trip():
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
-                == "e1c25d9b743f"
+                == "f2d36e0c854a"
             )
             user_id = connection.execute(
                 text(
@@ -220,7 +221,7 @@ def test_postgresql_migration_round_trip():
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
-                == "e1c25d9b743f"
+                == "f2d36e0c854a"
             )
             connection.execute(text("DELETE FROM pdf_deletions"))
 
@@ -393,6 +394,12 @@ def test_postgresql_migration_round_trip():
             assert (
                 connection.execute(
                     text("SELECT is_verified FROM users WHERE id = 42")
+                ).scalar_one()
+                is False
+            )
+            assert (
+                connection.execute(
+                    text("SELECT is_admin FROM users WHERE id = 42")
                 ).scalar_one()
                 is False
             )

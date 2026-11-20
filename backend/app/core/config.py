@@ -2,17 +2,28 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core.security_policy import secret_is_strong
 
 
 class Settings(BaseSettings):
     APP_NAME: str
     DATABASE_URL: str
     DEBUG: bool = False
-    APP_ENV: Literal["production", "staging", "local", "development", "test"] = (
-        "production"
+    APP_ENV: Literal["production", "staging", "local", "development", "test"] = Field(
+        "production", validation_alias=AliasChoices("APP_ENV", "ENVIRONMENT")
     )
+    HSTS_ENABLED: bool = True
+    HSTS_MAX_AGE: int = Field(31536000, ge=0, le=63072000)
+    API_RATE_LIMIT_ENABLED: bool = True
+    API_RATE_LIMIT_TEST_ENABLED: bool = False
+    API_RATE_LIMIT_REQUESTS: int = Field(120, ge=1, le=100000)
+    API_RATE_LIMIT_WINDOW_SECONDS: int = Field(60, ge=1, le=86400)
+    API_RATE_LIMIT_MAX_CLIENTS: int = Field(10000, ge=1, le=100000)
+    READINESS_TIMEOUT_SECONDS: float = Field(2.0, gt=0, le=10)
+    READINESS_STORAGE_CACHE_SECONDS: float = Field(1.0, ge=0, le=30)
     CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
@@ -106,6 +117,28 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
     )
+
+
+def validate_runtime_settings(config: Settings) -> None:
+    """Fail before binding a production server; never include secrets in errors."""
+    if config.APP_ENV != "production":
+        return
+    if not secret_is_strong(config.SECRET_KEY):
+        raise ValueError("Production SECRET_KEY must be strong and unique.")
+    if config.DEBUG:
+        raise ValueError("DEBUG must be disabled in production.")
+    if not config.CORS_ORIGINS or any(
+        not origin.startswith("https://") for origin in config.CORS_ORIGINS
+    ):
+        raise ValueError("Production CORS_ORIGINS must be explicit HTTPS origins.")
+    if not config.JWT_ISSUER.strip() or not config.JWT_AUDIENCE.strip():
+        raise ValueError("Production JWT issuer and audience must be configured.")
+    if not config.API_RATE_LIMIT_ENABLED:
+        raise ValueError("API rate limiting must be enabled in production.")
+    if config.ALGORITHM != "HS256":
+        raise ValueError("Only the configured HS256 signing policy is supported.")
+    if urlsplit(config.DATABASE_URL).scheme.split("+", 1)[0] != "postgresql":
+        raise ValueError("Production DATABASE_URL must use PostgreSQL.")
 
 
 settings = Settings()

@@ -338,7 +338,7 @@ def test_export_is_allowlisted_and_contains_only_callers_data(
     db.commit()
     response = client.get(f"{ME}/export", headers=headers(access_token))
     assert response.status_code == 200
-    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["cache-control"] == "private, no-store"
     data = response.json()
     assert data["account"]["id"] == test_user.id
     assert {paper["id"] for paper in data["papers"]} == {own.id}
@@ -523,7 +523,7 @@ def test_verification_token_visibility_is_explicitly_gated(
     result = client.post(f"{AUTH}/verify-email/request", headers=headers(access_token))
     assert result.status_code == 200
     assert ("debug_token" in result.json()) is expected
-    assert result.headers["cache-control"] == "no-store"
+    assert result.headers["cache-control"] == "private, no-store"
 
 
 @pytest.mark.parametrize(

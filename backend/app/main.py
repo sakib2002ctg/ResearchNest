@@ -4,15 +4,19 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.core.config import settings
+from app.core.config import settings, validate_runtime_settings
 from app.core.logging import logger
-from app.database.database import engine
+
+# Retain the existing engine import for legacy integrations and fixture overrides.
+from app.database.database import engine  # noqa: F401
 from app.database.discovery_database import create_discovery_engine
 from app.exceptions.handlers import register_exception_handlers
 from app.middleware.logging import LoggingMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.security import SecurityHeadersMiddleware
+from app.modules.admin.router import router as admin_router
 from app.modules.ai.gateway import AIProviderGateway
 from app.modules.ai.router import router as conversations_router
 from app.modules.ai.router import usage_router
@@ -39,6 +43,7 @@ from app.modules.library.router import router as library_router
 from app.modules.multimodal.cleanup import run_asset_cleanup
 from app.modules.multimodal.processing import run_jobs as run_asset_jobs
 from app.modules.multimodal.router import router as multimodal_router
+from app.modules.operations.router import router as operations_router
 from app.modules.projects.router import router as projects_router
 from app.modules.teams.router import router as teams_router
 from app.modules.writing.router import router as writing_router
@@ -50,21 +55,15 @@ from app.routers.users import router as users_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_runtime_settings(settings)
     discovery_engine = create_discovery_engine(settings.DATABASE_URL)
     app.state.discovery_session_factory = async_sessionmaker(
         discovery_engine, expire_on_commit=False
     )
     app.state.ai_gateway = AIProviderGateway()
-    try:
-        # Test database connection
-        with engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
-
-        logger.info("Connected to PostgreSQL successfully!")
-        logger.info("ResearchNest application started.")
-
-    except Exception:
-        logger.exception("Database connection failed!")
+    # Dependency outages must not block startup or the cheap liveness probe.
+    # /health/ready performs bounded asynchronous database/Redis/storage checks.
+    logger.info("Application started; dependency readiness is checked separately.")
 
     redis = (
         Redis.from_url(
@@ -73,6 +72,7 @@ async def lifespan(app: FastAPI):
         if settings.REDIS_URL
         else None
     )
+    app.state.operational_redis = redis
     gateway = DiscoveryGateway(
         {
             "arxiv": ArxivProvider(timeout=4),
@@ -153,11 +153,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="ResearchNest API",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
 # Middleware
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -172,6 +173,8 @@ app.add_middleware(
         "X-Requested-With",
     ],
 )
+app.add_middleware(SecurityHeadersMiddleware)
+app.include_router(operations_router)
 
 # Register global exception handlers
 register_exception_handlers(app)
@@ -195,6 +198,7 @@ for router in (
     analytics_router,
     education_router,
     teams_router,
+    admin_router,
 ):
     app.include_router(router, prefix="/api/v1")
 
@@ -208,11 +212,6 @@ def home():
     return {"message": "Welcome to ResearchNest!"}
 
 
-@app.get("/health")
-def health():
-    return {"status": "OK"}
-
-
 @app.get("/about")
 def about():
-    return {"project": "ResearchNest", "version": "1.0"}
+    return {"project": "ResearchNest", "version": "2.0.0"}
