@@ -480,8 +480,21 @@ def production_config(**overrides):
         APP_ENV="production",
         DEBUG=False,
         CORS_ORIGINS=["https://site.example"],
+        API_RATE_LIMIT_ENABLED=True,
     )
     return Settings(**(defaults | overrides), _env_file=None)
+
+
+@pytest.mark.parametrize("environment_value", ["false", "true"])
+def test_production_fixture_is_independent_of_test_rate_limit_environment(
+    monkeypatch, environment_value
+):
+    monkeypatch.setenv("API_RATE_LIMIT_ENABLED", environment_value)
+    config = production_config()
+    assert config.API_RATE_LIMIT_ENABLED is True
+    validate_runtime_settings(config)
+    with pytest.raises(ValueError, match="rate limiting must be enabled"):
+        validate_runtime_settings(production_config(API_RATE_LIMIT_ENABLED=False))
 
 
 def test_environment_alias_and_valid_production_settings(monkeypatch):

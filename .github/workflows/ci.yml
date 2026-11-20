@@ -70,6 +70,14 @@ jobs:
           docker exec ${{ job.services.postgres.id }} createdb -U researchnest researchnest_identity
           docker exec ${{ job.services.postgres.id }} createdb -U researchnest researchnest_alembic_check
           docker exec ${{ job.services.postgres.id }} createdb -U researchnest researchnest_role_check
+      - name: Provision pgvector for isolated ORM test schemas
+        # The discovery race test creates an isolated schema before the migration
+        # round-trip test runs. Extensions belong to the database, not the server;
+        # provisioning the separate Alembic/role databases does not cover this one.
+        run: >-
+          docker exec ${{ job.services.postgres.id }} psql -U researchnest
+          -d researchnest_migrations -v ON_ERROR_STOP=1
+          -c 'CREATE EXTENSION IF NOT EXISTS vector;'
       - name: Verify real Redis atomic rate window
         run: |
           python - <<'PY'
